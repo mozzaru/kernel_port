@@ -69,7 +69,6 @@
 		qcom,chipid = <0x05000600>;
 
 		qcom,initial-pwrlevel = <6>;
-		tzone-names = "gpu0-usr", "gpu1-usr";
 
 		qcom,idle-timeout = <80>; //msecs
 		qcom,deep-nap-timeout = <100>; //msecs
@@ -132,7 +131,7 @@
 		qcom,ca-busy-penalty = <12000>;
 
 		/* Context aware jump target power level */
-		qcom,ca-target-pwrlevel = <3>;
+		qcom,ca-target-pwrlevel = <4>;
 
 		/* Enable gpu cooling device */
 		#cooling-cells = <2>;
