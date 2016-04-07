@@ -250,21 +250,6 @@ static int msm_vfe48_get_clks(struct vfe_device *vfe_dev)
 				vfe_dev->vfe_clk_rates
 					[MSM_VFE_CLK_RATE_SVS][i]);
 		}
-		if (strcmp(vfe_dev->vfe_clk_info[i].clk_name,
-					"mnoc_maxi_clk") == 0)
-			vfe_dev->vfe_clk_info[i].clk_rate = INIT_RATE;
-		/* set no memory retention */
-		if (strcmp(vfe_dev->vfe_clk_info[i].clk_name,
-				"camss_vfe_clk") == 0 ||
-			strcmp(vfe_dev->vfe_clk_info[i].clk_name,
-				"camss_csi_vfe_clk") == 0 ||
-			strcmp(vfe_dev->vfe_clk_info[i].clk_name,
-				"camss_vfe_vbif_axi_clk") == 0) {
-			msm_camera_set_clk_flags(vfe_dev->vfe_clk[i],
-				 CLKFLAG_NORETAIN_MEM);
-			msm_camera_set_clk_flags(vfe_dev->vfe_clk[i],
-				 CLKFLAG_NORETAIN_PERIPH);
-		}
 	}
 	return 0;
 }
