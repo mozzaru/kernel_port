@@ -1665,8 +1665,8 @@ void msm_vfe47_update_camif_state(struct vfe_device *vfe_dev,
 		/* For testgen always halt on camif boundary */
 		if (vfe_dev->axi_data.src_info[VFE_PIX_0].input_mux == TESTGEN)
 			update_state = DISABLE_CAMIF;
-		/* turn off camif, violation and write master overwrite irq */
-		vfe_dev->hw_info->vfe_ops.irq_ops.config_irq(vfe_dev, 0, 0x91,
+		/* turn off all irq before camif disable */
+		msm_vfe47_config_irq(vfe_dev, 0, 0x81,
 					MSM_ISP_IRQ_DISABLE);
 		val = msm_camera_io_r(vfe_dev->vfe_base + 0x464);
 		/* disable danger signal */
@@ -1677,6 +1677,8 @@ void msm_vfe47_update_camif_state(struct vfe_device *vfe_dev,
 			poll_val, poll_val & 0x80000000, 1000, 2000000))
 			pr_err("%s: camif disable failed %x\n",
 				__func__, poll_val);
+		vfe_dev->axi_data.src_info[VFE_PIX_0].active = 0;
+		vfe_dev->axi_data.src_info[VFE_PIX_0].flag = 0;
 		/* testgen OFF*/
 		if (vfe_dev->axi_data.src_info[VFE_PIX_0].input_mux == TESTGEN)
 			msm_camera_io_w(1 << 1, vfe_dev->vfe_base + 0xC58);

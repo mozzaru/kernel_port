@@ -1091,7 +1091,7 @@ static void msm_vfe44_update_camif_state(struct vfe_device *vfe_dev,
 
 		vfe_dev->axi_data.src_info[VFE_PIX_0].active = 1;
 	} else if (update_state == DISABLE_CAMIF ||
-		update_state == DISABLE_CAMIF_IMMEDIATELY) {
+		DISABLE_CAMIF_IMMEDIATELY == update_state) {
 		uint32_t poll_val;
 
 		if (vfe_dev->axi_data.src_info[VFE_PIX_0].input_mux == TESTGEN)

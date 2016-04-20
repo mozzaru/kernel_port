@@ -1165,7 +1165,7 @@ static void msm_vfe46_update_camif_state(struct vfe_device *vfe_dev,
 		if (vfe_dev->axi_data.src_info[VFE_PIX_0].input_mux == TESTGEN)
 			msm_camera_io_w(1, vfe_dev->vfe_base + 0xAF4);
 	} else if (update_state == DISABLE_CAMIF ||
-		update_state == DISABLE_CAMIF_IMMEDIATELY) {
+		DISABLE_CAMIF_IMMEDIATELY == update_state) {
 		uint32_t poll_val;
 
 		if (vfe_dev->axi_data.src_info[VFE_PIX_0].input_mux == TESTGEN)
