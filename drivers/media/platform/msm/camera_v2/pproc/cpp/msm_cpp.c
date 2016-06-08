@@ -4575,21 +4575,6 @@ static int cpp_probe(struct platform_device *pdev)
 		goto mem_err;
 	}
 
-	/* set memcore and mem periphery logic flags to 0 */
-	for (i = 0; i < cpp_dev->num_clks; i++) {
-		if ((strcmp(cpp_dev->clk_info[i].clk_name,
-			"cpp_core_clk") == 0) ||
-			(strcmp(cpp_dev->clk_info[i].clk_name,
-			"camss_cpp_axi_clk") == 0) ||
-			(strcmp(cpp_dev->clk_info[i].clk_name,
-			"micro_iface_clk") == 0)) {
-			msm_camera_set_clk_flags(cpp_dev->cpp_clk[i],
-				CLKFLAG_NORETAIN_MEM);
-			msm_camera_set_clk_flags(cpp_dev->cpp_clk[i],
-				CLKFLAG_NORETAIN_PERIPH);
-		}
-	}
-
 	rc = msm_camera_get_reset_info(pdev,
 			&cpp_dev->micro_iface_reset);
 	if (rc < 0) {
@@ -4598,6 +4583,7 @@ static int cpp_probe(struct platform_device *pdev)
 				__func__);
 		goto get_reg_err;
 	}
+
 	rc = msm_camera_get_regulator_info(pdev, &cpp_dev->cpp_vdd,
 		&cpp_dev->num_reg);
 	if (rc < 0) {
