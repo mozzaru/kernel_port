@@ -645,9 +645,7 @@ static int camera_v4l2_open(struct file *filep)
 	struct v4l2_event event;
 	struct msm_video_device *pvdev = video_drvdata(filep);
 	unsigned long opn_idx, idx;
-
-	if (WARN_ON(!pvdev))
-		return -EIO;
+	BUG_ON(!pvdev);
 
 	mutex_lock(&pvdev->video_drvdata_mutex);
 	rc = camera_v4l2_fh_open(filep);
