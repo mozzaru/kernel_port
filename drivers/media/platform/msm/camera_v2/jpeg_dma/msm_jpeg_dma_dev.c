@@ -17,8 +17,6 @@
 #include <linux/ion.h>
 #include <linux/msm_ion.h>
 #include <linux/delay.h>
-#include <linux/uaccess.h>
-#include <linux/compat.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
 #include <media/videobuf2-core.h>
@@ -1035,9 +1033,6 @@ static int msm_jpegdma_s_crop(struct file *file, void *fh,
 		return -EINVAL;
 
 	if (crop->c.height % formats[ctx->format_idx].v_align)
-		return -EINVAL;
-
-	if (crop->c.top % formats[ctx->format_idx].v_align)
 		return -EINVAL;
 
 	ctx->crop = crop->c;
