@@ -1075,9 +1075,6 @@ static int cpp_init_hardware(struct cpp_device *cpp_dev)
 	int rc = 0;
 	uint32_t vbif_version;
 
-	cpp_dev->turbo_vote = 0;
-	cpp_dev->fault_status = CPP_IOMMU_FAULT_NONE;
-
 	rc = msm_camera_regulator_enable(cpp_dev->cpp_vdd,
 		cpp_dev->num_reg, true);
 	if (rc < 0) {
@@ -1211,7 +1208,7 @@ static void cpp_release_hardware(struct cpp_device *cpp_dev)
 		rc = msm_cpp_update_bandwidth_setting(cpp_dev, 0, 0);
 	}
 	cpp_dev->stream_cnt = 0;
-	pr_info("cpp hw release done\n");
+
 }
 
 static int32_t cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
@@ -4573,6 +4570,21 @@ static int cpp_probe(struct platform_device *pdev)
 	if (rc < 0) {
 		pr_err("%s: failed to get the clocks\n", __func__);
 		goto mem_err;
+	}
+
+	/* set memcore and mem periphery logic flags to 0 */
+	for (i = 0; i < cpp_dev->num_clks; i++) {
+		if ((strcmp(cpp_dev->clk_info[i].clk_name,
+			"cpp_core_clk") == 0) ||
+			(strcmp(cpp_dev->clk_info[i].clk_name,
+			"camss_cpp_axi_clk") == 0) ||
+			(strcmp(cpp_dev->clk_info[i].clk_name,
+			"micro_iface_clk") == 0)) {
+			msm_camera_set_clk_flags(cpp_dev->cpp_clk[i],
+				CLKFLAG_NORETAIN_MEM);
+			msm_camera_set_clk_flags(cpp_dev->cpp_clk[i],
+				CLKFLAG_NORETAIN_PERIPH);
+		}
 	}
 
 	rc = msm_camera_get_reset_info(pdev,
