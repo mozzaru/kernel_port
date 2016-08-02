@@ -21,7 +21,7 @@
 #include <linux/msm_ion.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
-#include <media/videobuf2-v4l2.h>
+#include <media/videobuf2-core.h>
 #include <linux/clk/msm-clk.h>
 
 #include "msm_fd_dev.h"
