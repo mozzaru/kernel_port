@@ -1428,10 +1428,10 @@ int msm_jpegdma_hw_get_qos(struct msm_jpegdma_device *dma)
 	if (!dma->qos_regs)
 		return -ENOMEM;
 
-	for (i = 0; i < cnt; i = i + 2) {
+	for (i = 0, j = 0; i < cnt; i += 2, j++) {
 		ret = of_property_read_u32_index(dma->dev->of_node,
 			"qcom,qos-reg-settings", i,
-			&dma->qos_regs[i].reg);
+			&dma->qos_regs[j].reg);
 		if (ret < 0) {
 			dev_err(dma->dev, "can not read qos reg %d\n", j);
 			goto error;
@@ -1439,7 +1439,7 @@ int msm_jpegdma_hw_get_qos(struct msm_jpegdma_device *dma)
 
 		ret = of_property_read_u32_index(dma->dev->of_node,
 			"qcom,qos-reg-settings", i + 1,
-			&dma->qos_regs[i].val);
+			&dma->qos_regs[j].val);
 		if (ret < 0) {
 			dev_err(dma->dev, "can not read qos setting %d\n", j);
 			goto error;
@@ -1495,10 +1495,10 @@ int msm_jpegdma_hw_get_vbif(struct msm_jpegdma_device *dma)
 	if (!dma->vbif_regs)
 		return -ENOMEM;
 
-	for (i = 0; i < cnt; i = i + 2) {
+	for (i = 0, j = 0; i < cnt; i += 2, j++) {
 		ret = of_property_read_u32_index(dma->dev->of_node,
 			"qcom,vbif-reg-settings", i,
-			&dma->vbif_regs[i].reg);
+			&dma->vbif_regs[j].reg);
 		if (ret < 0) {
 			dev_err(dma->dev, "can not read vbif reg %d\n", j);
 			goto error;
@@ -1506,7 +1506,7 @@ int msm_jpegdma_hw_get_vbif(struct msm_jpegdma_device *dma)
 
 		ret = of_property_read_u32_index(dma->dev->of_node,
 			"qcom,vbif-reg-settings", i + 1,
-			&dma->vbif_regs[i].val);
+			&dma->vbif_regs[j].val);
 		if (ret < 0) {
 			dev_err(dma->dev, "can not read vbif setting %d\n", j);
 			goto error;
@@ -1563,10 +1563,10 @@ int msm_jpegdma_hw_get_prefetch(struct msm_jpegdma_device *dma)
 	if (!dma->prefetch_regs)
 		return -ENOMEM;
 
-	for (i = 0; i < cnt; i = i + 2) {
+	for (i = 0, j = 0; i < cnt; i += 2, j++) {
 		ret = of_property_read_u32_index(dma->dev->of_node,
 			"qcom,prefetch-reg-settings", i,
-			&dma->prefetch_regs[i].reg);
+			&dma->prefetch_regs[j].reg);
 		if (ret < 0) {
 			dev_err(dma->dev, "can not read prefetch reg %d\n", j);
 			goto error;
@@ -1574,7 +1574,7 @@ int msm_jpegdma_hw_get_prefetch(struct msm_jpegdma_device *dma)
 
 		ret = of_property_read_u32_index(dma->dev->of_node,
 			"qcom,prefetch-reg-settings", i + 1,
-			&dma->prefetch_regs[i].val);
+			&dma->prefetch_regs[j].val);
 		if (ret < 0) {
 			dev_err(dma->dev, "can not read prefetch setting %d\n",
 				j);
