@@ -1341,12 +1341,10 @@ static int32_t cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 	}
 
 vote:
-	ret = cam_config_ahb_clk(NULL, 0, CAM_AHB_CLIENT_CPP,
+	rc = cam_config_ahb_clk(NULL, 0, CAM_AHB_CLIENT_CPP,
 			CAM_AHB_SVS_VOTE);
-	if (ret < 0) {
+	if (rc < 0)
 		pr_err("%s:%d: failed to vote for AHB\n", __func__, __LINE__);
-		rc = ret;
-	}
 end:
 	return rc;
 }
