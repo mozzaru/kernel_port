@@ -177,7 +177,7 @@ int32_t msm_camera_qup_i2c_write(struct msm_camera_i2c_client *client,
 	enum msm_camera_i2c_data_type data_type)
 {
 	int32_t rc = -EFAULT;
-	unsigned char *buf = NULL;
+	unsigned char *buf;
 	uint8_t len = 0;
 
 	if ((client->addr_type != MSM_CAMERA_I2C_BYTE_ADDR
@@ -187,7 +187,7 @@ int32_t msm_camera_qup_i2c_write(struct msm_camera_i2c_client *client,
 		return rc;
 
 	buf = kzalloc((uint32_t)client->addr_type + (uint32_t)data_type,
-					GFP_KERNEL);
+		GFP_KERNEL);
 
 	if (!buf)
 		return -ENOMEM;
