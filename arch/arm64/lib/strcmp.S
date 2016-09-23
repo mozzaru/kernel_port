@@ -64,6 +64,7 @@
    NUL too in big-endian, byte-reverse the data before the NUL check.  */
 
 
+	.p2align 6
 ENTRY(strcmp)
 	prfm    pldl1strm, [src1]
 	prfm    pldl1strm, [src2]
