@@ -1793,10 +1793,7 @@ error_ahb:
 
 static void msm_ispif_release(struct ispif_device *ispif)
 {
-	if (WARN_ON(!ispif)) {
-		pr_err("%s: invalid ispif params", __func__);
-		return;
-	}
+	BUG_ON(!ispif);
 
 	msm_camera_enable_irq(ispif->irq, 0);
 
