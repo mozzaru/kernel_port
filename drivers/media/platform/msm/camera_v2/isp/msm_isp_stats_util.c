@@ -484,11 +484,14 @@ int msm_isp_request_stats_stream(struct vfe_device *vfe_dev, void *arg)
 
 	stream_info = msm_isp_get_stats_stream_common_data(vfe_dev, stats_idx);
 
-	rc = msm_isp_stats_create_stream(vfe_dev, stream_req_cmd, stream_info);
-	if (rc < 0) {
-		pr_err("%s: create stream failed\n", __func__);
-		return rc;
-	}
+	framedrop_period = msm_isp_get_framedrop_period(
+	   stream_req_cmd->framedrop_pattern);
+
+	if (stream_req_cmd->framedrop_pattern == SKIP_ALL)
+		stream_info->framedrop_pattern = 0x0;
+	else
+		stream_info->framedrop_pattern = 0x1;
+	stream_info->framedrop_period = framedrop_period;
 
 	if (stream_info->init_stats_frame_drop == 0)
 		vfe_dev->hw_info->vfe_ops.stats_ops.cfg_wm_reg(vfe_dev,
@@ -1304,7 +1307,7 @@ int msm_isp_update_stats_stream(struct vfe_device *vfe_dev, void *arg)
 				stream_info->framedrop_pattern = 0x0;
 			else
 				stream_info->framedrop_pattern = 0x1;
-			stream_info->framedrop_period = framedrop_period - 1;
+			stream_info->framedrop_period = framedrop_period;
 			if (stream_info->init_stats_frame_drop == 0)
 				for (k = 0; k < stream_info->num_isp; k++)
 					stream_info->vfe_dev[k]->hw_info->
