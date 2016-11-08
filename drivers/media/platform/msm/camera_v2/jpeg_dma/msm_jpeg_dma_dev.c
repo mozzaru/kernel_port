@@ -131,7 +131,7 @@ static inline void msm_jpegdma_schedule_next_config(struct jpegdma_ctx *ctx)
  * @buff_ptr_head: buffer pointer head
  */
 static inline void msm_jpegdma_cast_long_to_buff_ptr(unsigned long vaddr,
-	struct msm_jpeg_dma_buff __user **buff_ptr_head)
+	struct msm_jpeg_dma_buff **buff_ptr_head)
 {
 #ifdef CONFIG_COMPAT
 	*buff_ptr_head = compat_ptr(vaddr);
@@ -423,9 +423,11 @@ static void *msm_jpegdma_get_userptr(struct device *alloc_ctx,
 {
 	struct msm_jpegdma_device *dma = (void *)alloc_ctx;
 	struct msm_jpegdma_buf_handle *buf;
-	struct msm_jpeg_dma_buff __user *up_buff = compat_ptr(vaddr);
+	struct msm_jpeg_dma_buff __user *up_buff;
 	struct msm_jpeg_dma_buff kp_buff;
 	int ret;
+
+	msm_jpegdma_cast_long_to_buff_ptr(vaddr, &up_buff);
 
 	if (!access_ok(VERIFY_READ, up_buff,
 		sizeof(struct msm_jpeg_dma_buff)) ||
@@ -831,9 +833,11 @@ static int msm_jpegdma_qbuf(struct file *file, void *fh,
 	struct v4l2_buffer *buf)
 {
 	struct jpegdma_ctx *ctx = msm_jpegdma_ctx_from_fh(fh);
-	struct msm_jpeg_dma_buff __user *up_buff = compat_ptr(buf->m.userptr);
+	struct msm_jpeg_dma_buff __user *up_buff;
 	struct msm_jpeg_dma_buff kp_buff;
 	int ret;
+
+	msm_jpegdma_cast_long_to_buff_ptr(buf->m.userptr, &up_buff);
 
 	if (!access_ok(VERIFY_READ, up_buff,
 		sizeof(struct msm_jpeg_dma_buff)) ||
