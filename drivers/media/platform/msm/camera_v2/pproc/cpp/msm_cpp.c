@@ -2973,10 +2973,9 @@ static int msm_cpp_copy_from_ioctl_ptr(void *dst_ptr,
 		return -EINVAL;
 	}
 
-	/* For compat task, source ptr is in kernel space */
-	if (is_compat_task()) {
-		memcpy(dst_ptr, (__force void *)ioctl_ptr->ioctl_ptr,
-			ioctl_ptr->len);
+	/* Some of the data is already in kernel space */
+	if ((uintptr_t)ioctl_ptr->ioctl_ptr >= USER_DS) {
+		memcpy(dst_ptr, ioctl_ptr->ioctl_ptr, ioctl_ptr->len);
 		ret = 0;
 	} else {
 		ret = copy_from_user(dst_ptr,
