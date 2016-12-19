@@ -364,9 +364,7 @@ static int msm_fd_vbif_error_handler(void *handle, uint32_t error)
 		msm_fd_hw_get(fd, ctx->settings.speed);
 
 		/* Get active buffer */
-		MSM_FD_SPIN_LOCK(fd->slock, 1);
 		active_buf = msm_fd_hw_get_active_buffer(fd, 1);
-		MSM_FD_SPIN_UNLOCK(fd->slock, 1);
 
 		if (active_buf == NULL) {
 			dev_dbg(fd->dev, "no active buffer, return\n");
@@ -1301,8 +1299,10 @@ static void msm_fd_wq_handler(struct work_struct *work)
 	fd_event->frame_id = ctx->sequence;
 	v4l2_event_queue_fh(&ctx->fh, &event);
 
-	/* Release buffer from the device */
-	msm_fd_hw_buffer_done(fd, active_buf, 0);
+	if (fd->state == MSM_FD_DEVICE_RUNNING) {
+		/* Release buffer from the device */
+		msm_fd_hw_buffer_done(fd, active_buf, 0);
+	}
 
 	MSM_FD_SPIN_UNLOCK(fd->slock, 1);
 }
