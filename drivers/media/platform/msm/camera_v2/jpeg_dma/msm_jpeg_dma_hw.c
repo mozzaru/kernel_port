@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -72,17 +72,15 @@ static const struct msm_jpegdma_block msm_jpegdma_block_sel[] = {
 };
 
 /*
- * jpegdma_do_div - long division.
- * @num: dividend
- * @den: divisor
- * returns quotient value.
- */
+* jpegdma_do_div - long division.
+* @num: dividend
+* @den: divisor
+* returns quotient value.
+*/
 static inline long long jpegdma_do_div(long long num, long long den)
 {
-	uint64_t n = (uint64_t) num;
-
-	do_div(n, (uint32_t)den);
-	return n;
+	do_div(num, den);
+	return num;
 }
 
 /*
@@ -962,7 +960,7 @@ static int msm_jpegdma_hw_calc_config(struct msm_jpegdma_size_config *size_cfg,
 	if (plane->active_pipes > 1) {
 		phase = jpegdma_do_div((out_height * scale_ver +
 			(plane->active_pipes - 1)), plane->active_pipes);
-		phase &= (u64)(MSM_JPEGDMA_SCALE_UNI - 1);
+		phase &= (MSM_JPEGDMA_SCALE_UNI - 1);
 		out_height = jpegdma_do_div((out_height +
 			(plane->active_pipes - 1)), plane->active_pipes);
 		in_height = (out_height * scale_ver) / MSM_JPEGDMA_SCALE_UNI;
