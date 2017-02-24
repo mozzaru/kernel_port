@@ -66,8 +66,9 @@ static void lz4_exit(struct crypto_tfm *tfm)
 static int __lz4_compress_crypto(const u8 *src, unsigned int slen,
 				 u8 *dst, unsigned int *dlen, void *ctx)
 {
+	struct lz4_ctx *ctx = crypto_tfm_ctx(tfm);
 	int out_len = LZ4_compress_default(src, dst,
-		slen, *dlen, ctx);
+		slen, *dlen, ctx->lz4_comp_mem);
 
 	if (!out_len)
 		return -EINVAL;
@@ -80,41 +81,13 @@ static int lz4_scompress(struct crypto_scomp *tfm, const u8 *src,
 			 unsigned int slen, u8 *dst, unsigned int *dlen,
 			 void *ctx)
 {
-	return __lz4_compress_crypto(src, slen, dst, dlen, ctx);
-}
-
-static int lz4_compress_crypto(struct crypto_tfm *tfm, const u8 *src,
-			       unsigned int slen, u8 *dst, unsigned int *dlen)
-{
-	struct lz4_ctx *ctx = crypto_tfm_ctx(tfm);
-
-	return __lz4_compress_crypto(src, slen, dst, dlen, ctx->lz4_comp_mem);
-}
-
-static int __lz4_decompress_crypto(const u8 *src, unsigned int slen,
-				   u8 *dst, unsigned int *dlen, void *ctx)
-{
 	int out_len = LZ4_decompress_safe(src, dst, slen, *dlen);
 
 	if (out_len < 0)
-		return -EINVAL;
+		return out_len;
 
 	*dlen = out_len;
 	return 0;
-}
-
-static int lz4_sdecompress(struct crypto_scomp *tfm, const u8 *src,
-			   unsigned int slen, u8 *dst, unsigned int *dlen,
-			   void *ctx)
-{
-	return __lz4_decompress_crypto(src, slen, dst, dlen, NULL);
-}
-
-static int lz4_decompress_crypto(struct crypto_tfm *tfm, const u8 *src,
-				 unsigned int slen, u8 *dst,
-				 unsigned int *dlen)
-{
-	return __lz4_decompress_crypto(src, slen, dst, dlen, NULL);
 }
 
 static struct crypto_alg alg_lz4 = {
