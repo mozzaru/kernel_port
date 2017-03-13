@@ -300,6 +300,7 @@ static void cam_smmu_check_vaddr_in_range(int idx, void *vaddr)
 		pr_err("Cannot find vaddr:%pK in SMMU.\n"
 			" %s uses invalid virtual address\n",
 			vaddr, iommu_cb_set.cb_info[idx].name);
+	return;
 }
 
 void cam_smmu_reg_client_page_fault_handler(int handle,
