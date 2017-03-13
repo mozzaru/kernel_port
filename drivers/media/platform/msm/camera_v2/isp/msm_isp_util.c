@@ -2282,10 +2282,17 @@ void msm_isp_do_tasklet(unsigned long data)
 	struct msm_isp_timestamp ts;
 	uint32_t irq_status0, irq_status1, pingpong_status;
 
-	while (1) {
-		spin_lock_irqsave(&tasklet->tasklet_lock, flags);
-		queue_cmd = list_first_entry_or_null(&tasklet->tasklet_q,
-			struct msm_vfe_tasklet_queue_cmd, list);
+	if (vfe_dev->vfe_base == NULL || vfe_dev->vfe_open_cnt == 0) {
+		ISP_DBG("%s: VFE%d open cnt = %d, device closed(base = %pK)\n",
+			__func__, vfe_dev->pdev->id, vfe_dev->vfe_open_cnt,
+			vfe_dev->vfe_base);
+		return;
+	}
+
+	while (atomic_read(&vfe_dev->irq_cnt)) {
+		spin_lock_irqsave(&vfe_dev->tasklet_lock, flags);
+		queue_cmd = list_first_entry_or_null(&vfe_dev->tasklet_q,
+		struct msm_vfe_tasklet_queue_cmd, list);
 		if (!queue_cmd) {
 			spin_unlock_irqrestore(&tasklet->tasklet_lock, flags);
 			break;
