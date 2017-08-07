@@ -3508,6 +3508,7 @@ static int mdss_mdp_cmd_early_wake_up(struct mdss_mdp_ctl *ctl)
 	if (ctx && !ctx->intf_stopped)
 		queue_work(ctx->early_wakeup_clk_wq,
 			&ctx->early_wakeup_clk_work);
+
 	return 0;
 }
 
