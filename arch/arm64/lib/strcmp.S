@@ -65,34 +65,34 @@
 
 
 ENTRY(strcmp)
-	sub	off2, src2, src1
-	mov	zeroones, REP8_01
-	and	tmp, src1, 7
-	tst	off2, 7
-	b.ne	L(misaligned8)
-	cbnz	tmp, L(mutual_align)
+	prfm    pldl1strm, [src1]
+	prfm    pldl1strm, [src2]
+	b	.Lperf_critical
+.align  6
+.Lperf_critical:
+	/* Start of performance-critical section  -- one 64B cache line.  */
+	eor	tmp1, src1, src2
+	mov	zeroones, #REP8_01
+	tst	tmp1, #7
+	b.ne	.Lmisaligned8
+	ands	tmp1, src1, #7
+	b.ne	.Lmutual_align
 
-	.p2align 4
-
-L(loop_aligned):
-	ldr	data2, [src1, off2]
-	ldr	data1, [src1], 8
-L(start_realigned):
-#ifdef __AARCH64EB__
-	rev	tmp, data1
-	sub	has_nul, tmp, zeroones
-	orr	tmp, tmp, REP8_7f
-#else
-	sub	has_nul, data1, zeroones
-	orr	tmp, data1, REP8_7f
-#endif
-	bics	has_nul, has_nul, tmp	/* Non-zero if NUL terminator.  */
-	ccmp	data1, data2, 0, eq
-	b.eq	L(loop_aligned)
-#ifdef __AARCH64EB__
-	rev	has_nul, has_nul
-#endif
-	eor	diff, data1, data2
+	/*
+	* NUL detection works on the principle that (X - 1) & (~X) & 0x80
+	* (=> (X - 1) & ~(X | 0x7f)) is non-zero iff a byte is zero, and
+	* can be done in parallel across the entire word.
+	*/
+.Lloop_aligned:
+	ldr	data1, [src1], #8
+	ldr	data2, [src2], #8
+.Lstart_realigned:
+	prfm    pldl1strm, [src1]
+	prfm    pldl1strm, [src2]
+	sub	tmp1, data1, zeroones
+	orr	tmp2, data1, #REP8_7f
+	eor	diff, data1, data2	/* Non-zero if differences found.  */
+	bic	has_nul, tmp1, tmp2	/* Non-zero if NUL terminator.  */
 	orr	syndrome, diff, has_nul
 L(end):
 #ifndef __AARCH64EB__
