@@ -228,29 +228,21 @@ static inline int __msm_queue_find_command_ack_q(void *d1, void *d2)
 
 static inline void msm_pm_qos_add_request(void)
 {
-	pr_info("%s: add request", __func__);
-	if (atomic_cmpxchg(&qos_add_request_done, 0, 1))
-		return;
+	pr_info("%s: add request\n", __func__);
 	pm_qos_add_request(&msm_v4l2_pm_qos_request, PM_QOS_CPU_DMA_LATENCY,
 	PM_QOS_DEFAULT_VALUE);
 }
 
 static void msm_pm_qos_remove_request(void)
 {
-	pr_info("%s: remove request", __func__);
+	pr_info("%s: remove request\n", __func__);
 	pm_qos_remove_request(&msm_v4l2_pm_qos_request);
 }
 
 void msm_pm_qos_update_request(int val)
 {
-	/* update just before creating the first session,
-	 * or after destroying the last session.
-	 */
-	if (msm_session_q && msm_session_q->len == 0) {
-		pr_info("%s: update request %d", __func__, val);
-		msm_pm_qos_add_request();
-		pm_qos_update_request(&msm_v4l2_pm_qos_request, val);
-	}
+	pr_info("%s: update request %d\n", __func__, val);
+	pm_qos_update_request(&msm_v4l2_pm_qos_request, val);
 }
 
 struct msm_session *msm_session_find(unsigned int session_id)
