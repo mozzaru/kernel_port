@@ -79,8 +79,10 @@ static const struct msm_jpegdma_block msm_jpegdma_block_sel[] = {
 */
 static inline long long jpegdma_do_div(long long num, long long den)
 {
-	do_div(num, den);
-	return num;
+	uint64_t n = (uint64_t) num;
+
+	do_div(n, (uint32_t)den);
+	return n;
 }
 
 /*
