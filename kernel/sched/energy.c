@@ -62,6 +62,8 @@ int arch_update_cpu_topology(void)
 	return update_topology;
 }
 
+static bool sge_ready;
+
 void init_sched_energy_costs(void)
 {
 	struct device_node *cn, *cp;
@@ -168,6 +170,9 @@ static int sched_energy_probe(struct platform_device *pdev)
 
 	if (!sched_is_energy_aware())
 		return 0;
+	if (!sge_ready)
+		return -EPROBE_DEFER;
+
 	if (!sge_ready)
 		return -EPROBE_DEFER;
 
