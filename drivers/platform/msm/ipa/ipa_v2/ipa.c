@@ -5077,7 +5077,7 @@ int ipa2_ap_suspend(struct device *dev)
 
 	IPADBG("Enter...\n");
 
-#ifdef CONFIG_IPA_WAKELOCK
+#if 0
 	/* In case there is a tx/rx handler in polling mode fail to suspend */
 	for (i = 0; i < ipa_ctx->ipa_num_pipes; i++) {
 		if (ipa_ctx->ep[i].sys &&
