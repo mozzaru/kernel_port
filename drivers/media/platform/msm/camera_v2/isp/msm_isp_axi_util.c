@@ -141,51 +141,13 @@ static int msm_isp_axi_create_stream(struct vfe_device *vfe_dev,
 static void msm_isp_axi_destroy_stream(
 	struct vfe_device *vfe_dev, struct msm_vfe_axi_stream *stream_info)
 {
-	int k;
-	int j;
-	int i;
-	int vfe_idx = msm_isp_get_vfe_idx_for_stream(vfe_dev, stream_info);
-
-	/*
-	 * For the index being removed, shift everything to it's right by 1
-	 * so that the index being removed becomes the last index
-	 */
-	for (i = vfe_idx, k = vfe_idx + 1; k < stream_info->num_isp; k++, i++) {
-		stream_info->vfe_dev[i] = stream_info->vfe_dev[k];
-		stream_info->stream_handle[i] = stream_info->stream_handle[k];
-		stream_info->bandwidth[i] = stream_info->bandwidth[k];
-		stream_info->max_width[i] = stream_info->max_width[k];
-		stream_info->comp_mask_index[i] =
-				stream_info->comp_mask_index[k];
-		for (j = 0; j < stream_info->num_planes; j++) {
-			stream_info->plane_cfg[i][j] =
-				stream_info->plane_cfg[k][j];
-			stream_info->wm[i][j] = stream_info->wm[k][j];
-		}
-	}
-
-	stream_info->num_isp--;
-	stream_info->vfe_dev[stream_info->num_isp] = NULL;
-	stream_info->stream_handle[stream_info->num_isp] = 0;
-	stream_info->bandwidth[stream_info->num_isp] = 0;
-	stream_info->max_width[stream_info->num_isp] = 0;
-	stream_info->comp_mask_index[stream_info->num_isp] = -1;
-	stream_info->vfe_mask &= ~(1 << vfe_dev->pdev->id);
-	for (j = 0; j < stream_info->num_planes; j++) {
-		stream_info->wm[stream_info->num_isp][j] = -1;
-		memset(&stream_info->plane_cfg[stream_info->num_isp][j],
-			0, sizeof(
-			stream_info->plane_cfg[stream_info->num_isp][j]));
-	}
-
-	if (stream_info->num_isp == 0) {
-		/* release the bufq */
-		for (k = 0; k < VFE_BUF_QUEUE_MAX; k++)
-			stream_info->bufq_handle[k] = 0;
-		stream_info->vfe_mask = 0;
-		stream_info->state = AVAILABLE;
-		memset(&stream_info->request_queue_cmd,
-			0, sizeof(stream_info->request_queue_cmd));
+	if (axi_data->stream_info[stream_idx].state != AVAILABLE) {
+		axi_data->stream_info[stream_idx].state = AVAILABLE;
+		axi_data->stream_info[stream_idx].stream_handle = 0;
+	} else {
+		pr_err("%s: stream does not exist\n", __func__);
+		memset(&axi_data->stream_info[stream_idx].request_queue_cmd,
+			0, sizeof(axi_data->stream_info[stream_idx].request_queue_cmd));
 	}
 }
 
@@ -3795,16 +3757,11 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 		if (rc) {
 			spin_unlock_irqrestore(&stream_info->lock, flags);
 			stream_info->undelivered_request_cnt--;
-			queue_req = list_first_entry_or_null(
-				&stream_info->request_q,
-				struct msm_vfe_frame_request_queue, list);
-			if (queue_req) {
-				queue_req->cmd_used = 0;
-				list_del(&queue_req->list);
-				stream_info->request_q_cnt--;
-			}
-			pr_err_ratelimited("%s:%d fail to cfg HAL buffer stream %x\n",
-				__func__, __LINE__, stream_info->stream_id);
+			pr_err_ratelimited("%s:%d fail to cfg HAL buffer\n",
+				__func__, __LINE__);
+			queue_req->cmd_used = 0;
+			list_del(&queue_req->list);
+			stream_info->request_q_cnt--;
 			return rc;
 		}
 
@@ -3849,6 +3806,9 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 			}
 			pr_err_ratelimited("%s:%d fail to cfg HAL buffer\n",
 				__func__, __LINE__);
+			queue_req->cmd_used = 0;
+			list_del(&queue_req->list);
+			stream_info->request_q_cnt--;
 			return rc;
 		}
 	} else {
