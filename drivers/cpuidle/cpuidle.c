@@ -128,6 +128,32 @@ void cpuidle_use_deepest_state(bool enable)
 	preempt_enable();
 }
 
+static void set_uds_callback(void *info)
+{
+	bool enable = *(bool *)info;
+
+	cpuidle_use_deepest_state(enable);
+}
+
+/**
+ * cpuidle_use_deepest_state_mask - Set use_deepest_state on specific CPUs.
+ * @target: cpumask of CPUs to update use_deepest_state on.
+ * @enable: whether to enforce the deepest idle state on those CPUs.
+ */
+int cpuidle_use_deepest_state_mask(const struct cpumask *target, bool enable)
+{
+	bool *info = kmalloc(sizeof(bool), GFP_KERNEL);
+
+	if (!info)
+		return -ENOMEM;
+
+	*info = enable;
+	on_each_cpu_mask(target, set_uds_callback, info, 1);
+	kfree(info);
+
+	return 0;
+}
+
 /**
  * cpuidle_find_deepest_state - Find the deepest available idle state.
  * @drv: cpuidle driver for the given CPU.
