@@ -306,7 +306,7 @@ static struct fq_flow *fq_classify(struct sk_buff *skb, struct fq_sched_data *q)
 			p = &parent->rb_left;
 	}
 
-	f = kmem_cache_zalloc(fq_flow_cachep, GFP_ATOMIC | __GFP_NOWARN);
+	f = kmem_cache_zalloc(fq_flow_cachep, GFP_ATOMIC | __GFP_NOWARN); {
 	if (unlikely(!f)) {
 		q->stat_allocation_errors++;
 		return &q->internal;
