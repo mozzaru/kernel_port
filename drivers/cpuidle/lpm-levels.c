@@ -71,6 +71,7 @@ module_param_named(bias_hyst, bias_hyst, uint, 0664);
 static DEFINE_PER_CPU(struct lpm_cpu*, cpu_lpm);
 static bool suspend_in_progress;
 static struct hrtimer lpm_hrtimer;
+static DEFINE_PER_CPU(struct hrtimer, histtimer);
 
 static void cluster_unprepare(struct lpm_cluster *cluster,
 		const struct cpumask *cpu, int child_idx, bool from_idle,
@@ -1095,6 +1096,8 @@ static const struct platform_freeze_ops lpm_freeze_ops = {
 static int lpm_probe(struct platform_device *pdev)
 {
 	int ret;
+	unsigned int cpu;
+	struct hrtimer *cpu_histtimer;
 	struct kobject *module_kobj = NULL;
 
 	get_online_cpus();
@@ -1118,6 +1121,12 @@ static int lpm_probe(struct platform_device *pdev)
 	suspend_set_ops(&lpm_suspend_ops);
 	freeze_set_ops(&lpm_freeze_ops);
 	hrtimer_init(&lpm_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	for_each_possible_cpu(cpu) {
+		cpu_histtimer = &per_cpu(histtimer, cpu);
+		hrtimer_init(cpu_histtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	}
+
+	cluster_timer_init(lpm_root_node);
 
 	register_cluster_lpm_stats(lpm_root_node, NULL);
 
