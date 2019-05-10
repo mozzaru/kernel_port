@@ -62,17 +62,8 @@ static DEFINE_SPINLOCK(suspend_lock);
 static u64 suspend_time;
 static u64 suspend_start;
 static unsigned long acc_total, acc_relative_busy;
-
-static struct msm_adreno_extended_profile *partner_gpu_profile;
-static void do_partner_start_event(struct work_struct *work);
-static void do_partner_stop_event(struct work_struct *work);
-static void do_partner_suspend_event(struct work_struct *work);
-static void do_partner_resume_event(struct work_struct *work);
-
 /* Suspend state boolean */
 static bool suspended = false;
-
-static struct workqueue_struct *workqueue;
 
 /*
  * Returns GPU suspend time in millisecond.
