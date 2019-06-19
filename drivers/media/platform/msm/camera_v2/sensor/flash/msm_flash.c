@@ -85,6 +85,65 @@ static struct led_classdev msm_torch_led[MAX_LED_TRIGGERS] = {
 	},
 };
 
+
+	torch_curr[0] = 200;
+	torch_curr[1] = 88;
+
+	flashlight_brightness_value = value;
+
+	if (value == 0) {
+		/* Turn off flash triggers */
+		for (i = 0; i < flash_ctrl->torch_num_sources; i++)
+			if (flash_ctrl->torch_trigger[i])
+				led_trigger_event(flash_ctrl->torch_trigger[i], 0);
+
+		if (flash_ctrl->switch_trigger)
+			led_trigger_event(flash_ctrl->switch_trigger, 0);
+
+	} else {
+		/* Turn on flash triggers */
+		for (i = 0; i < flash_ctrl->torch_num_sources; i++)
+				led_trigger_event(flash_ctrl->torch_trigger[i], torch_curr[i]);
+
+		if (flash_ctrl->switch_trigger)
+			led_trigger_event(flash_ctrl->switch_trigger, 1);
+
+	}
+}
+
+static enum led_brightness msm_flashlight_brightness_vince_get(struct led_classdev *led_cdev)
+{
+	return flashlight_brightness_value;
+}
+
+static struct led_classdev msm_pmic_flashlight_led = {
+       .name           = "flashlight",
+       .brightness_set = msm_flashlight_brightness_vince_set,
+       .brightness_get = msm_flashlight_brightness_vince_get,
+       .brightness     = LED_OFF,
+};
+int32_t msm_flashlight_create_classdev(struct platform_device *pdev,
+		void *data)
+{
+	int32_t i = 0, rc = 0;
+	struct msm_flash_ctrl_t *fctrl =
+		(struct msm_flash_ctrl_t *)data;
+
+	if (!fctrl) {
+		pr_err("Invalid fctrl\n");
+		return -EINVAL;
+	}
+
+	flashlight_ctrl = fctrl;
+
+	rc = led_classdev_register(&pdev->dev, &msm_pmic_flashlight_led);
+	if (rc) {
+		pr_err("Failed to register %d led dev. rc = %d\n", i, rc);
+		return rc;
+	}
+	return 0;
+}
+#endif
 static int32_t msm_torch_create_classdev(struct platform_device *pdev,
 				void *data)
 {
