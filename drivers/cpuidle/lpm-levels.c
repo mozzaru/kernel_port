@@ -74,6 +74,7 @@ static DEFINE_PER_CPU(struct lpm_cpu*, cpu_lpm);
 static bool suspend_in_progress;
 static struct hrtimer lpm_hrtimer;
 static DEFINE_PER_CPU(struct hrtimer, histtimer);
+static DEFINE_PER_CPU(struct hrtimer, biastimer);
 
 static void cluster_unprepare(struct lpm_cluster *cluster,
 		const struct cpumask *cpu, int child_idx, bool from_idle,
@@ -281,15 +282,206 @@ static void msm_pm_set_timer(uint32_t modified_time_us)
 	hrtimer_start(&lpm_hrtimer, modified_ktime, HRTIMER_MODE_REL_PINNED);
 }
 
-static inline bool is_cpu_biased(int cpu)
+static void biastimer_cancel(void)
+{
+	unsigned int cpu = raw_smp_processor_id();
+	struct hrtimer *cpu_biastimer = &per_cpu(biastimer, cpu);
+	ktime_t time_rem;
+
+	time_rem = hrtimer_get_remaining(cpu_biastimer);
+	if (ktime_to_us(time_rem) <= 0)
+		return;
+
+	hrtimer_try_to_cancel(cpu_biastimer);
+}
+
+static enum hrtimer_restart biastimer_fn(struct hrtimer *h)
+{
+	return HRTIMER_NORESTART;
+}
+
+static void biastimer_start(uint32_t time_ns)
+{
+	ktime_t bias_ktime = ns_to_ktime(time_ns);
+	unsigned int cpu = raw_smp_processor_id();
+	struct hrtimer *cpu_biastimer = &per_cpu(biastimer, cpu);
+
+	cpu_biastimer->function = biastimer_fn;
+	hrtimer_start(cpu_biastimer, bias_ktime, HRTIMER_MODE_REL_PINNED);
+}
+
+static uint64_t lpm_cpuidle_predict(struct cpuidle_device *dev,
+		struct lpm_cpu *cpu, int *idx_restrict,
+		uint32_t *idx_restrict_time)
+{
+	int i, j, divisor;
+	uint64_t max, avg, stddev;
+	int64_t thresh = LLONG_MAX;
+	struct lpm_history *history = &per_cpu(hist, dev->cpu);
+	uint32_t *min_residency = get_per_cpu_min_residency(dev->cpu);
+	uint32_t *max_residency = get_per_cpu_max_residency(dev->cpu);
+
+	if (!lpm_prediction || !cpu->lpm_prediction)
+		return 0;
+
+	/*
+	 * Samples are marked invalid when woken-up due to timer,
+	 * so donot predict.
+	 */
+	if (history->hinvalid) {
+		history->hinvalid = 0;
+		history->htmr_wkup = 1;
+		history->stime = 0;
+		return 0;
+	}
+
+	/*
+	 * Predict only when all the samples are collected.
+	 */
+	if (history->nsamp < MAXSAMPLES) {
+		history->stime = 0;
+		return 0;
+	}
+
+	/*
+	 * Check if the samples are not much deviated, if so use the
+	 * average of those as predicted sleep time. Else if any
+	 * specific mode has more premature exits return the index of
+	 * that mode.
+	 */
+
+again:
+	max = avg = divisor = stddev = 0;
+	for (i = 0; i < MAXSAMPLES; i++) {
+		int64_t value = history->resi[i];
+
+		if (value <= thresh) {
+			avg += value;
+			divisor++;
+			if (value > max)
+				max = value;
+		}
+	}
+	do_div(avg, divisor);
+
+	for (i = 0; i < MAXSAMPLES; i++) {
+		int64_t value = history->resi[i];
+
+		if (value <= thresh) {
+			int64_t diff = value - avg;
+
+			stddev += diff * diff;
+		}
+	}
+	do_div(stddev, divisor);
+	stddev = int_sqrt(stddev);
+
+	/*
+	 * If the deviation is less, return the average, else
+	 * ignore one maximum sample and retry
+	 */
+	if (((avg > stddev * 6) && (divisor >= (MAXSAMPLES - 1)))
+					|| stddev <= cpu->ref_stddev) {
+		history->stime = ktime_to_us(ktime_get()) + avg;
+		return avg;
+	} else if (divisor  > (MAXSAMPLES - 1)) {
+		thresh = max - 1;
+		goto again;
+	}
+
+	/*
+	 * Find the number of premature exits for each of the mode,
+	 * excluding clockgating mode, and they are more than fifty
+	 * percent restrict that and deeper modes.
+	 */
+	if (history->htmr_wkup != 1) {
+		for (j = 1; j < cpu->nlevels; j++) {
+			uint32_t failed = 0;
+			uint64_t total = 0;
+
+			for (i = 0; i < MAXSAMPLES; i++) {
+				if ((history->mode[i] == j) &&
+					(history->resi[i] < min_residency[j])) {
+					failed++;
+					total += history->resi[i];
+				}
+			}
+			if (failed >= cpu->ref_premature_cnt) {
+				*idx_restrict = j;
+				do_div(total, failed);
+				for (i = 0; i < j; i++) {
+					if (total < max_residency[i]) {
+						*idx_restrict = i+1;
+						total = max_residency[i];
+						break;
+					}
+				}
+
+				*idx_restrict_time = total;
+				history->stime = ktime_to_us(ktime_get())
+						+ *idx_restrict_time;
+				break;
+			}
+		}
+	}
+	return 0;
+}
+
+static inline void invalidate_predict_history(struct cpuidle_device *dev)
+{
+	struct lpm_history *history = &per_cpu(hist, dev->cpu);
+	struct lpm_cpu *lpm_cpu = per_cpu(cpu_lpm, dev->cpu);
+
+	if (!lpm_prediction || !lpm_cpu->lpm_prediction)
+		return;
+
+	if (history->hinvalid) {
+		history->hinvalid = 0;
+		history->htmr_wkup = 1;
+		history->stime = 0;
+	}
+}
+
+static void clear_predict_history(void)
+{
+	struct lpm_history *history;
+	int i;
+	unsigned int cpu;
+	struct lpm_cpu *lpm_cpu = per_cpu(cpu_lpm, raw_smp_processor_id());
+
+	if (!lpm_prediction || !lpm_cpu->lpm_prediction)
+		return;
+
+	for_each_possible_cpu(cpu) {
+		history = &per_cpu(hist, cpu);
+		for (i = 0; i < MAXSAMPLES; i++) {
+			history->resi[i]  = 0;
+			history->mode[i] = -1;
+			history->hptr = 0;
+			history->nsamp = 0;
+			history->stime = 0;
+		}
+	}
+}
+
+static void update_history(struct cpuidle_device *dev, int idx);
+
+static inline bool is_cpu_biased(int cpu, uint64_t *bias_time)
 {
 	u64 now = sched_clock();
 	u64 last = sched_get_cpu_last_busy_time(cpu);
+	u64 diff = 0;
 
 	if (!last)
 		return false;
 
-	return (now - last) < BIAS_HYST;
+	diff = now - last;
+	if (diff < BIAS_HYST) {
+		*bias_time = BIAS_HYST - diff;
+		return true;
+	}
+
+	return false;
 }
 
 static int cpu_power_select(struct cpuidle_device *dev,
@@ -305,6 +497,7 @@ static int cpu_power_select(struct cpuidle_device *dev,
 	uint32_t lvl_latency_us = 0;
 	uint32_t next_wakeup_us = (uint32_t)sleep_us;
 	uint32_t *max_residency = get_per_cpu_max_residency(dev->cpu);
+	uint64_t bias_time = 0;
 
 	if ((sleep_disabled && !cpu_isolated(dev->cpu)) || sleep_us < 0)
 		return best_level;
@@ -313,8 +506,10 @@ static int cpu_power_select(struct cpuidle_device *dev,
 
 	next_event_us = (uint32_t)(ktime_to_us(get_next_event_time(dev->cpu)));
 
-	if (is_cpu_biased(dev->cpu) && (!cpu_isolated(dev->cpu)))
+	if (is_cpu_biased(dev->cpu, &bias_time) && (!cpu_isolated(dev->cpu))) {
+		cpu->bias = bias_time;
 		goto done_select;
+	}
 
 	for (i = 0; i < cpu->nlevels; i++) {
 		struct lpm_cpu_level *level = &cpu->levels[i];
@@ -745,6 +940,8 @@ static bool psci_enter_sleep(struct lpm_cpu *cpu, int idx, bool from_idle)
 	 */
 
 	if (!idx) {
+		if (cpu->bias)
+			biastimer_start(cpu->bias);
 		stop_critical_timings();
 		cpu_do_idle();
 		start_critical_timings();
@@ -824,6 +1021,14 @@ exit:
 	cpu_unprepare(cpu, idx, true);
 	dev->last_residency = ktime_us_delta(ktime_get(), start);
 	trace_cpu_idle_exit(idx, success);
+	if (lpm_prediction && cpu->lpm_prediction) {
+		histtimer_cancel();
+		clusttimer_cancel();
+	}
+	if (cpu->bias) {
+		biastimer_cancel();
+		cpu->bias = 0;
+	}
 	local_irq_enable();
 	return idx;
 }
@@ -1155,6 +1360,8 @@ static int lpm_probe(struct platform_device *pdev)
 	hrtimer_init(&lpm_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	for_each_possible_cpu(cpu) {
 		cpu_histtimer = &per_cpu(histtimer, cpu);
+		hrtimer_init(cpu_histtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		cpu_histtimer = &per_cpu(biastimer, cpu);
 		hrtimer_init(cpu_histtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	}
 
