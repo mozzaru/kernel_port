@@ -1387,6 +1387,7 @@ static ssize_t mic_gain_show(struct kobject *kobj,
  	if (input < -10 || input > 20)
 		input = 0;
  	snd_soc_write(sound_control_codec_ptr, MSM89XX_CDC_CORE_TX1_VOL_CTL_GAIN, input);
+ 	snd_soc_write(sound_control_codec_ptr, MSM89XX_CDC_CORE_TX2_VOL_CTL_GAIN, input);
  	return count;
 }
  static struct kobj_attribute mic_gain_attribute =
