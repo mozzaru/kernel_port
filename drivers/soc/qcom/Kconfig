@@ -973,7 +973,10 @@ config BIG_CLUSTER_MIN_FREQ_ADJUST
 	  to the user specified value when the cluster is not power collapsed. When
 	  the cluster is power collpsed it resets the value to physical limits.
 
-config SERIAL_NUM
-	bool "Enable Serial Number Proc Interface"
+config STATE_NOTIFIER
+	bool "State Notifier"
+	default n
 	help
-	  Provide a interface for reading CPU serial number
+	  A unified display state notifier for kernel drivers for easy porting
+	  between different devices.
+
