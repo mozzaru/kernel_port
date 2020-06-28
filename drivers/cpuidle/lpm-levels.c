@@ -67,7 +67,7 @@ struct lpm_cluster *lpm_root_node;
 static bool cluster_use_deepest_state;
 module_param(cluster_use_deepest_state, bool, 0664);
 
-static bool cluster_use_deepest_state;
+static bool cluster_use_deepest_state = true;
 module_param(cluster_use_deepest_state, bool, 0664);
 
 static uint32_t bias_hyst;
