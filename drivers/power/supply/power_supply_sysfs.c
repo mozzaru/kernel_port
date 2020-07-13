@@ -452,7 +452,9 @@ int power_supply_uevent(struct device *dev, struct kobj_uevent_env *env)
 		ustr = attrname;
 		while (*str)
 			*ustr++ = toupper(*str++);
+
 		*ustr = 0;
+
 		ret = add_uevent_var(env, "POWER_SUPPLY_%s=%s", attrname, prop_buf);
 		if (ret)
 			goto out;
