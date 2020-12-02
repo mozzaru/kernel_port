@@ -176,24 +176,17 @@ static void a5xx_platform_setup(struct adreno_device *adreno_dev)
 	struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 
 	if (adreno_is_a504_to_a506(adreno_dev) || adreno_is_a508(adreno_dev)) {
-		gpudev->snapshot_data->sect_sizes->cp_meq = 32;
-		gpudev->snapshot_data->sect_sizes->cp_merciu = 1024;
-		gpudev->snapshot_data->sect_sizes->roq = 256;
 
 		/* A505 & A506 having 3 XIN ports in VBIF */
 		gpudev->vbif_xin_halt_ctrl0_mask =
 				A510_VBIF_XIN_HALT_CTRL0_MASK;
 	} else if (adreno_is_a510(adreno_dev)) {
-		gpudev->snapshot_data->sect_sizes->cp_meq = 32;
-		gpudev->snapshot_data->sect_sizes->cp_merciu = 32;
-		gpudev->snapshot_data->sect_sizes->roq = 256;
 
 		/* A510 has 3 XIN ports in VBIF */
 		gpudev->vbif_xin_halt_ctrl0_mask =
 				A510_VBIF_XIN_HALT_CTRL0_MASK;
 	} else if (adreno_is_a540(adreno_dev) ||
 		adreno_is_a512(adreno_dev)) {
-		gpudev->snapshot_data->sect_sizes->cp_merciu = 1024;
 	}
 #endif
 
@@ -328,6 +321,7 @@ static void a5xx_init(struct adreno_device *adreno_dev)
 		if (ret)
 			a5xx_critical_packet_destroy(adreno_dev);
 	}
+
 }
 
 static void a5xx_remove(struct adreno_device *adreno_dev)
@@ -3436,9 +3430,11 @@ static struct adreno_snapshot_sizes a5xx_snap_sizes = {
 	.roq = 512,
 };
 
+
 static struct adreno_snapshot_data a5xx_snapshot_data = {
 	.sect_sizes = &a5xx_snap_sizes,
 };
+#endif
 
 static struct adreno_coresight_register a5xx_coresight_registers[] = {
 	{ A5XX_RBBM_CFG_DBGBUS_SEL_A },
