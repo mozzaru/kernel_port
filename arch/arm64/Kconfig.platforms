@@ -387,6 +387,12 @@ config MACH_XIAOMI_C6
 	help
 	  This enables support for Xiaomi Redmi Note 4(X).
 
+config MACH_XIAOMI_CLK_MOD
+        bool "Clock and Voltage Modifications"
+        help
+          This enables support for Clock and Voltage Modificatio
+ns.
+
 endchoice
 
 endif
