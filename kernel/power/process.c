@@ -1,5 +1,5 @@
 /*
- * drivers/power/process.c - Functions for starting/stopping processes on 
+ * drivers/power/process.c - Functions for starting/stopping processes on
  *                           suspend transitions.
  *
  * Originally from swsusp.
@@ -144,9 +144,7 @@ int freeze_processes(void)
 		atomic_inc(&system_freezing_cnt);
 
 	pm_wakeup_clear();
-#ifdef CONFIG_SUSPEND_LOG_DEBUG
 	pr_debug("Freezing user space processes ... ");
-#endif
 	pm_freezing = true;
 	error = try_to_freeze_tasks(true);
 	if (!error) {
@@ -187,10 +185,7 @@ int freeze_kernel_threads(void)
 {
 	int error;
 
-#ifdef CONFIG_SUSPEND_LOG_DEBUG
 	pr_debug("Freezing remaining freezable tasks ... ");
-#endif
-
 	pm_nosig_freezing = true;
 	error = try_to_freeze_tasks(false);
 #ifdef CONFIG_SUSPEND_LOG_DEBUG
