@@ -1,5 +1,5 @@
-dtb-$(CONFIG_ARCH_MSM8953) += msm8953-qrd-sku3-vince.dtb \ msm8953-qrd-markw.dtb
-dtb-$(CONFIG_MACH_XIAOMI_MARKW) := msm8953-qrd-markw.dtb
+dtb-$(CONFIG_ARCH_MSM8953) += msm8953-qrd-sku3-vince.dtb \ msm8953-qrd-sku3-markw.dtb
+dtb-$(CONFIG_MACH_XIAOMI_MARKW) := msm8953-qrd-sku3-markw.dtb
 
 always	        := $(dtb-y)
 
