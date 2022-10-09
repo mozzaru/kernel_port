@@ -172,8 +172,10 @@ void fts_ctpm_get_upgrade_array(void)
 	fts_ctpm_i2c_hid2std(fts_i2c_client);
 
 	/* Get functin pointer */
+/*
 	memcpy(&fts_updatefun_curr, &fts_updatefun,
 			sizeof(struct fts_upgrade_fun));
+*/
 
 	FTS_FUNC_EXIT();
 }
@@ -397,6 +399,19 @@ int fts_ctpm_lcd_cfg_upgrade(struct i2c_client *client)
 		i_ret = fts_updatefun_curr.upgrade_with_lcd_cfg_i_file(client);
 
 	return i_ret;
+}
+
+static int check_chip_id(u8 chip_id1, u8 chip_id2)
+{
+#if FTS_CHIP_IDC
+	if ((chip_id1 == chip_types.chip_idh)
+			&& (chip_id2 == chip_types.chip_idl) {
+#else
+	if (chip_id1 == chip_types.chip_idh) {
+#endif
+		return 1;
+	}
+	return 0;
 }
 
 #if (!(FTS_UPGRADE_STRESS_TEST))
