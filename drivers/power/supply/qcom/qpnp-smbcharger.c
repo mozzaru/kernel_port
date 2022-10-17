@@ -4774,7 +4774,7 @@ static int smbchg_restricted_charging(struct smbchg_chip *chip, bool enable)
 	return rc;
 }
 
-#if defined(CONFIG_MACH_XIAOMI_	С6) || defined(CONFIG_MACH_XIAOMI_MARKW)
+#ifdef CONFIG_MACH_XIAOMI_С6
 extern void ist30xx_set_ta_mode(bool mode);
 extern void tpd_usb_plugin(bool mode);
 extern void gtp_usb_plugin(bool mode);
@@ -4786,7 +4786,7 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 	union power_supply_propval pval = {0, };
 	int rc;
 
-#if defined(CONFIG_MACH_XIAOMI_	С6) || defined(CONFIG_MACH_XIAOMI_MARKW)
+#ifdef CONFIG_MACH_XIAOMI_С6
 	if (set_usb_charge_mode_par == 1)
 		ist30xx_set_ta_mode(0);
 	else if (set_usb_charge_mode_par == 2)
@@ -4864,7 +4864,7 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 	int rc;
 	char *usb_type_name = "null";
 
-#if defined(CONFIG_MACH_XIAOMI_	С6) || defined(CONFIG_MACH_XIAOMI_MARKW)
+#ifdef CONFIG_MACH_XIAOMI_С6
 	if (set_usb_charge_mode_par == 1)
 		ist30xx_set_ta_mode(1);
 	else if (set_usb_charge_mode_par == 2)
@@ -6268,6 +6268,11 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_RESISTANCE_ID:
 		val->intval = get_prop_batt_resistance_id(chip);
 		break;
+#ifndef CONFIG_MACH_XIAOMI_MARKW
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = get_prop_batt_full_charge(chip);
+		break;
+#endif
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = get_prop_batt_temp(chip);
 		break;
