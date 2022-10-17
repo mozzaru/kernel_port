@@ -4821,7 +4821,7 @@ static int smbchg_restricted_charging(struct smbchg_chip *chip, bool enable)
 }
 
 #ifdef (CONFIG_MACH_XIAOMI_MARKW)
-extern void ist30xx_set_ta_mode(bool mode);
+extern void fpc_set_ta_mode(bool mode);
 extern void tpd_usb_plugin(bool mode);
 extern void gtp_usb_plugin(bool mode);
 int set_usb_charge_mode_par = 0;
@@ -6288,6 +6288,11 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_RESISTANCE_ID:
 		val->intval = get_prop_batt_resistance_id(chip);
 		break;
+#ifndef CONFIG_MACH_XIAOMI_MARKW
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = get_prop_batt_full_charge(chip);
+		break;
+#endif
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = get_prop_batt_temp(chip);
 		break;
