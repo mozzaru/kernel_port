@@ -3341,7 +3341,9 @@ parse_mclk_freq:
 	}
 
 	pdata->spk_ext_pa_gpio_p = of_parse_phandle(pdev->dev.of_node,
+#ifdef CONFIG_MACH_XIAOMI_MARKW
 							spk_ext_pa, 0);
+#endif
 
 	ret = is_us_eu_switch_gpio_support(pdev, pdata);
 	if (ret < 0) {
