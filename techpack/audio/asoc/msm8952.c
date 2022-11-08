@@ -3138,19 +3138,25 @@ static int msm8952_asoc_machine_probe(struct platform_device *pdev)
 	const char *hs_micbias_type = "qcom,msm-hs-micbias-type";
 	const char *ext_pa = "qcom,msm-ext-pa";
 	const char *mclk = "qcom,msm-mclk-freq";
+#ifndef CONFIG_MACH_XIAOMI_MARKW
 	const char *wsa = "asoc-wsa-codec-names";
+#endif
 	const char *type = NULL;
 	const char *ext_pa_str = NULL;
-	const char *spk_ext_pa = "qcom,msm-spk-ext-pa";
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	const char *spk_ext_pa = "qcom,spk_ext_pa";
+#endif
 	int num_strings;
 	int id, i, val;
 	int ret = 0;
 	struct resource *muxsel;
+#ifndef CONFIG_MACH_XIAOMI_MARKW
 #if IS_ENABLED(CONFIG_SND_SOC_WSA881X_ANALOG)
 	const char *wsa_prefix = "asoc-wsa-codec-prefixes";
 	const char *wsa_str = NULL;
 	const char *wsa_prefix_str = NULL;
 	char *temp_str = NULL;
+#endif
 #endif
 
 	pdata = devm_kzalloc(&pdev->dev,
@@ -3230,6 +3236,7 @@ parse_mclk_freq:
 	}
 	pdata->mclk_freq = id;
 
+#ifndef CONFIG_MACH_XIAOMI_MARKW
 	/*reading the gpio configurations from dtsi file*/
 	num_strings = of_property_count_strings(pdev->dev.of_node,
 			wsa);
@@ -3300,6 +3307,7 @@ parse_mclk_freq:
 		}
 	}
 #endif
+#endif
 
 	card = msm8952_populate_sndcard_dailinks(&pdev->dev);
 	dev_dbg(&pdev->dev, "default codec configured\n");
@@ -3341,9 +3349,7 @@ parse_mclk_freq:
 	}
 
 	pdata->spk_ext_pa_gpio_p = of_parse_phandle(pdev->dev.of_node,
-#ifdef CONFIG_MACH_XIAOMI_MARKW
-							spk_ext_pa, 0);
-#endif
+							"qcom,cdc-ext-pa-gpios", 0);
 
 	ret = is_us_eu_switch_gpio_support(pdev, pdata);
 	if (ret < 0) {

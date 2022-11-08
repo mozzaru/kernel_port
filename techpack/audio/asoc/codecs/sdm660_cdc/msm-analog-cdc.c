@@ -93,6 +93,11 @@ static char on_demand_supply_name[][MAX_ON_DEMAND_SUPPLY_NAME_LENGTH] = {
 	"cdc-vdd-l1",
 };
 
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+static int external_spk_control = 1;
+static int external_hs_control = 0;
+#endif
+
 static struct wcd_mbhc_register
 	wcd_mbhc_registers[WCD_MBHC_REG_FUNC_MAX] = {
 	WCD_MBHC_REGISTER("WCD_MBHC_L_DET_EN",
@@ -1872,6 +1877,49 @@ static int msm_anlg_cdc_ext_spk_boost_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+static int get_external_spk_pa(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("At %d In (%s), external_spk_control=%d\n", __LINE__, __FUNCTION__, external_spk_control);
+	ucontrol->value.integer.value[0] = external_spk_control;
+	return 0;
+}
+static int set_external_spk_pa(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	struct msm_asoc_mach_data *pdata = NULL;
+	pdata = snd_soc_card_get_drvdata(codec->component.card);
+	pr_debug("At %d In (%s), external_spk_control=%d, value.integer.value[0]=%ld\n", __LINE__, __FUNCTION__, external_spk_control, ucontrol->value.integer.value[0]);
+	if (external_spk_control == ucontrol->value.integer.value[0])
+		return 0;
+	external_spk_control = ucontrol->value.integer.value[0];
+	msm_spk_ext_pa_ctrl(pdata, external_spk_control);
+	return 1;
+}
+static int get_external_hs_pa(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("At %d In (%s), external_hs_control=%d\n", __LINE__, __FUNCTION__, external_hs_control);
+	ucontrol->value.integer.value[0] = external_hs_control;
+	return 0;
+}
+static int set_external_hs_pa(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	struct msm_asoc_mach_data *pdata = NULL;
+	pdata = snd_soc_card_get_drvdata(codec->component.card);
+	pr_debug("At %d In (%s), external_hs_control=%d, value.integer.value[0]=%ld\n", __LINE__, __FUNCTION__, external_hs_control, ucontrol->value.integer.value[0]);
+	if (external_hs_control == ucontrol->value.integer.value[0])
+		return 0;
+	external_hs_control = ucontrol->value.integer.value[0];
+	msm_hs_ext_pa_ctrl(pdata, external_hs_control);
+	return 1;
+}
+#endif
+
 static const char * const msm_anlg_cdc_ear_pa_boost_ctrl_text[] = {
 		"DISABLE", "ENABLE"};
 static const struct soc_enum msm_anlg_cdc_ear_pa_boost_ctl_enum[] = {
@@ -1890,6 +1938,20 @@ static const char * const msm_anlg_cdc_boost_option_ctrl_text[] = {
 static const struct soc_enum msm_anlg_cdc_boost_option_ctl_enum[] = {
 		SOC_ENUM_SINGLE_EXT(4, msm_anlg_cdc_boost_option_ctrl_text),
 };
+
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+static const char * const msm_external_spk_pa_text[] = {
+		"OFF", "ON"};
+static const struct soc_enum msm_external_spk_pa_enum[] = {
+		SOC_ENUM_SINGLE_EXT(2, msm_external_spk_pa_text),
+};
+static const char * const msm_external_hs_pa_text[] = {
+		"OFF", "ON"};
+static const struct soc_enum msm_external_hs_pa_enum[] = {
+		SOC_ENUM_SINGLE_EXT(2, msm_external_hs_pa_text),
+};
+#endif
+
 static const char * const msm_anlg_cdc_spk_boost_ctrl_text[] = {
 		"DISABLE", "ENABLE"};
 static const struct soc_enum msm_anlg_cdc_spk_boost_ctl_enum[] = {
@@ -1928,6 +1990,13 @@ static const struct snd_kcontrol_new msm_anlg_cdc_snd_controls[] = {
 
 	SOC_ENUM_EXT("EAR PA Gain", msm_anlg_cdc_ear_pa_gain_enum[0],
 		msm_anlg_cdc_pa_gain_get, msm_anlg_cdc_pa_gain_put),
+
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	SOC_ENUM_EXT("Speaker PA Open", msm_external_spk_pa_enum[0],
+		get_external_spk_pa, set_external_spk_pa),
+	SOC_ENUM_EXT("HS PA Open", msm_external_hs_pa_enum[0],
+		get_external_hs_pa, set_external_hs_pa),
+#endif
 
 	SOC_ENUM_EXT("Speaker Boost", msm_anlg_cdc_spk_boost_ctl_enum[0],
 		msm_anlg_cdc_spk_boost_get, msm_anlg_cdc_spk_boost_set),
