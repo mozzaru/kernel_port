@@ -20,6 +20,7 @@
 #include <media/rc-core.h>
 #include "rc-core-priv.h"
 
+#ifdef CONFIG_MACH_XIAOMI_MARKW
 #define LIRCBUF_SIZE 1024
 
 /**
