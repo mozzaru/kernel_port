@@ -397,7 +397,7 @@ static ssize_t compatible_all_set(struct device *dev,
 		if (rc) {
 			dev_err(dev, "could not request irq %d\n",
 				gpio_to_irq(fpc1020->irq_gpio));
-		goto exit;
+			goto exit;
 		}
 		dev_dbg(dev, "requested irq %d\n", gpio_to_irq(fpc1020->irq_gpio));
 
@@ -408,9 +408,9 @@ static ssize_t compatible_all_set(struct device *dev,
 			dev_info(dev, "Enabling hardware\n");
 			(void)device_prepare(fpc1020, true);
 #ifdef LINUX_CONTROL_SPI_CLK
-		(void)set_clks(fpc1020, false);
+			(void)set_clks(fpc1020, false);
 #endif
-	}
+		}
 	} else if (!strncmp(buf, "disable", strlen("disable")) && fpc1020->compatible_enabled != 0) {
 		if (gpio_is_valid(fpc1020->irq_gpio)) {
 			devm_gpio_free(dev, fpc1020->irq_gpio);
@@ -541,13 +541,34 @@ static int fpc1020_probe(struct platform_device *pdev)
 #endif
 
 	mutex_init(&fpc1020->lock);
-
-	wake_lock_init(&fpc1020->ttw_wl, WAKE_LOCK_SUSPEND, "fpc_ttw_wl");
+	wakeup_source_init(&fpc1020->ttw_wl, "fpc_ttw_wl");
 
 	rc = sysfs_create_group(&dev->kobj, &attribute_group);
 	if (rc) {
 		dev_err(dev, "could not create sysfs\n");
 		goto exit;
+	}
+
+	if(!dev->parent || !dev->parent->parent) {
+		dev_warn(dev, "Parent platform device not found");
+		goto exit;
+	}
+
+	platform_dev = dev->parent->parent;
+	if(strcmp(kobject_name(&platform_dev->kobj), "platform")) {
+		dev_warn(dev, "Parent platform device name not matched: %s", kobject_name(&platform_dev->kobj));
+		goto exit;
+	}
+
+	devices_node = platform_dev->kobj.sd->parent;
+	soc_kobj = &dev->parent->kobj;
+	soc_node = soc_kobj->sd;
+	kernfs_get(soc_node);
+
+	soc_symlink = kernfs_create_link(devices_node, kobject_name(soc_kobj), soc_node);
+	kernfs_put(soc_node);
+	if(IS_ERR(soc_symlink)) {
+		dev_warn(dev, "Unable to create soc symlink");
 	}
 
 	dev_info(dev, "%s: ok\n", __func__);
@@ -617,7 +638,9 @@ static struct platform_driver fpc1020_driver = {
 
 static int __init fpc1020_init(void)
 {
-	int rc = platform_driver_register(&fpc1020_driver);
+	int rc;
+
+	rc = platform_driver_register(&fpc1020_driver);
 	if (!rc)
 		pr_info("%s OK\n", __func__);
 	else
