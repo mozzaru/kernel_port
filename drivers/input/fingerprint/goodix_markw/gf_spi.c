@@ -66,18 +66,19 @@
 #define N_SPI_MINORS		32	/* ... up to 256 */
 
 
-struct gf_key_map key_map[] = {
-	  {  "POWER",  KEY_POWER  },
-	  {  "HOME" ,  KEY_HOME   },
-	  {  "MENU" ,  KEY_MENU   },
-	  {  "BACK" ,  KEY_BACK   },
-	  {  "UP"   ,  KEY_UP     },
-	  {  "DOWN" ,  KEY_DOWN   },
-	  {  "LEFT" ,  KEY_LEFT   },
-	  {  "RIGHT",  KEY_RIGHT  },
-	  {  "FORCE",  KEY_F9     },
-	  {  "CLICK",  KEY_F19    },
-	  {  "CAMERA", KEY_CAMERA },
+static struct gf_key_map key_map[] = {
+	{  "POWER",  KEY_POWER  },
+	{  "HOME" ,  KEY_HOME   },
+	{  "MENU" ,  KEY_MENU   },
+	{  "BACK" ,  KEY_BACK   },
+	{  "UP"   ,  KEY_UP     },
+	{  "DOWN" ,  KEY_DOWN   },
+	{  "LEFT" ,  KEY_LEFT   },
+	{  "RIGHT",  KEY_RIGHT  },
+	{  "CAMERA", KEY_CAMERA },
+	{  "ENTER",  KEY_SELECT },
+	{  "FORCE",  KEY_F9     },
+	{  "CLICK",  KEY_F19    },
 };
 
 /**************************debug******************************/
@@ -137,7 +138,7 @@ static long spi_clk_max_rate(struct clk *clk, unsigned long rate)
 	if (cur == rate)
 		return rate;
 
-	/* if we got here then: cur > rate */
+
 	lowest_available = clk_round_rate(clk, 0);
 	if (lowest_available > rate)
 		return -EINVAL;
@@ -151,12 +152,9 @@ static long spi_clk_max_rate(struct clk *clk, unsigned long rate)
 
 		if ((cur < rate) && (cur > nearest_low))
 			nearest_low = cur;
-		/*
-		 * if we stepped too far, then start stepping in the other
-		 * direction with half the step size
-		 */
+
 		if (((cur > rate) && (step_direction > 0))
-			 || ((cur < rate) && (step_direction < 0))) {
+				|| ((cur < rate) && (step_direction < 0))) {
 			step_direction = -step_direction;
 			step_size >>= 1;
 		}
@@ -276,11 +274,11 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	if (_IOC_DIR(cmd) & _IOC_READ)
 		retval =
-			 !access_ok(VERIFY_WRITE, (void __user *)arg,
-			 _IOC_SIZE(cmd));
+				!access_ok(VERIFY_WRITE, (void __user *)arg,
+				_IOC_SIZE(cmd));
 	if ((retval == 0) && (_IOC_DIR(cmd) & _IOC_WRITE))
 		retval =
-			 !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+				!access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
 	if (retval)
 		return -EFAULT;
 
@@ -313,6 +311,8 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			if (speed > 8 * 1000 * 1000) {
 				pr_warn("Set speed:%d is larger than 8Mbps.\n",	speed);
 			} else {
+
+
 				spi_clock_set(gf_dev, speed);
 			}
 		} else {
@@ -332,7 +332,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 	case GF_IOC_SENDKEY:
 		if (copy_from_user
-			 (&gf_key, (struct gf_key *)arg, sizeof(struct gf_key))) {
+		(&gf_key, (struct gf_key *)arg, sizeof(struct gf_key))) {
 			pr_warn("Failed to copy data from user space.\n");
 			retval = -EFAULT;
 			break;
@@ -344,14 +344,16 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 					printk("lihao send camera key!\n");
 					input_report_key(gf_dev->input, KEY_SELECT, gf_key.value);
 					input_sync(gf_dev->input);
+
+
 				} else {
 					input_report_key(gf_dev->input, gf_key.key, gf_key.value);
 					input_sync(gf_dev->input);
+
 				}
 				break;
 			}
 		}
-
 		if (i == ARRAY_SIZE(key_map)) {
 			pr_warn("key %d not support yet \n", gf_key.key);
 			retval = -EFAULT;
@@ -442,11 +444,11 @@ static int driver_init_partial(struct gf_dev *gf_dev)
 
 	gf_dev->irq = gf_irq_num(gf_dev);
 	ret = devm_request_threaded_irq(&gf_dev->spi->dev,
-			gf_dev->irq,
-			NULL,
-			gf_irq,
-			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-			"gf", gf_dev);
+					gf_dev->irq,
+					NULL,
+					gf_irq,
+					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+					"gf", gf_dev);
 	if (ret) {
 		pr_err("Could not request irq %d\n", gpio_to_irq(gf_dev->irq_gpio));
 		goto error;
@@ -456,6 +458,7 @@ static int driver_init_partial(struct gf_dev *gf_dev)
 		gf_enable_irq(gf_dev);
 		gf_disable_irq(gf_dev);
 	}
+
 	gf_hw_reset(gf_dev, 360);
 
 	FUNC_EXIT();
@@ -494,8 +497,7 @@ static int gf_open(struct inode *inode, struct file *filp)
 			nonseekable_open(inode, filp);
 			gf_dbg("Succeed to open device. irq = %d\n",
 							gf_dev->irq);
-				/*power the sensor*/
-				 gf_dev->device_available = 1;
+			gf_dev->device_available = 1;
 		}
 	} else {
 		gf_dbg("No device for minor %d\n", iminor(inode));
@@ -535,10 +537,7 @@ static int gf_release(struct inode *inode, struct file *filp)
 		gf_dbg("disble_irq. irq = %d\n", gf_dev->irq);
 		gf_disable_irq(gf_dev);
 
-
 		devm_free_irq(&gf_dev->spi->dev, gf_dev->irq, gf_dev);
-
-
 
 		/*power off the sensor*/
 		gf_dev->device_available = 0;
@@ -575,7 +574,7 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 	unsigned int blank;
 
 #if defined(GF_NETLINK_ENABLE)
-		char temp = 0;
+	char temp = 0;
 #endif
 
 	if (val != FB_EARLY_EVENT_BLANK)
@@ -595,7 +594,7 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 #elif defined (GF_FASYNC)
 				if (gf_dev->async) {
 					kill_fasync(&gf_dev->async, SIGIO,
-					POLL_IN);
+						POLL_IN);
 				}
 #endif
 		/*device unavailable */
@@ -726,7 +725,10 @@ static int gf_probe(struct platform_device *pdev)
 		fb_register_client(&gf_dev->notifier);
 		gf_reg_key_kernel(gf_dev);
 
-		wake_lock_init(&gf_dev->ttw_wl, WAKE_LOCK_SUSPEND, "goodix_ttw_wl");
+		wakeup_source_init(&gf_dev->ttw_wl, "goodix_ttw_wl");
+
+
+
 	}
 
 	pr_warn("--------gf_probe end---OK.--------\n");
@@ -796,7 +798,6 @@ static int gf_suspend(struct spi_device *spi, pm_message_t mesg)
 static int gf_suspend(struct platform_device *pdev, pm_message_t state)
 #endif
 {
-
 	gf_dbg("gf_suspend_test.\n");
 	return 0;
 }
@@ -822,13 +823,13 @@ static struct spi_driver gf_driver = {
 static struct platform_driver gf_driver = {
 #endif
 	.driver = {
-		   .name = GF_DEV_NAME,
-		   .owner = THIS_MODULE,
+		.name = GF_DEV_NAME,
+		.owner = THIS_MODULE,
 #if defined(USE_SPI_BUS)
 
 #endif
-		   .of_match_table = gx_match_table,
-		   },
+		.of_match_table = gx_match_table,
+		},
 	.probe = gf_probe,
 	.remove = gf_remove,
 	.suspend = gf_suspend,
