@@ -1452,10 +1452,4 @@ config TOUCHSCREEN_RAYDIUM_CHIPSET
 
 	  If unsure, say N.
 
-source "drivers/input/touchscreen/xiaomi/Kconfig"
-
-source "drivers/input/touchscreen/Atmel308U/Kconfig"
-
-source "drivers/input/touchscreen/FT5346/Kconfig"
-
 endif
