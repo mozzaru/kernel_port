@@ -10,10 +10,10 @@
 #define MAX_MSGSIZE 4 * 1024
 int stringlength(char *s);
 void sendnlmsg(char *message);
-static int pid;
-static int err;
+int pid;
+int err;
 struct sock *nl_sk = NULL;
-static int flag = 0;
+int flag = 0;
 
 struct gf_uk_channel {
 	int channel_id;
