@@ -28,6 +28,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/list_lru.h>
+#include <linux/ratelimit.h>
 #include <linux/uaccess.h>
 #include <linux/highmem.h>
 #include "binder_alloc.h"
