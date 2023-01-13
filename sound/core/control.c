@@ -909,16 +909,19 @@ static int snd_ctl_elem_read(struct snd_card *card,
 	unsigned int index_offset;
 
 	kctl = snd_ctl_find_id(card, &control->id);
-	if (kctl == NULL)
-		return -ENOENT;
-
-	index_offset = snd_ctl_get_ioff(kctl, &control->id);
-	vd = &kctl->vd[index_offset];
-	if (!(vd->access & SNDRV_CTL_ELEM_ACCESS_READ) || kctl->get == NULL)
-		return -EPERM;
-
-	snd_ctl_build_ioff(&control->id, kctl, index_offset);
-	return kctl->get(kctl, control);
+	if (kctl == NULL) {
+		result = -ENOENT;
+	} else {
+		index_offset = snd_ctl_get_ioff(kctl, &control->id);
+		vd = &kctl->vd[index_offset];
+		if ((vd->access & SNDRV_CTL_ELEM_ACCESS_READ) &&
+		    kctl->get != NULL) {
+			snd_ctl_build_ioff(&control->id, kctl, index_offset);
+			result = kctl->get(kctl, control);
+		} else
+			result = -EPERM;
+	}
+	return result;
 }
 
 static int snd_ctl_elem_read_user(struct snd_card *card,
@@ -955,27 +958,26 @@ static int snd_ctl_elem_write(struct snd_card *card, struct snd_ctl_file *file,
 	int result;
 
 	kctl = snd_ctl_find_id(card, &control->id);
-	if (kctl == NULL)
-		return -ENOENT;
-
-	index_offset = snd_ctl_get_ioff(kctl, &control->id);
-	vd = &kctl->vd[index_offset];
-	if (!(vd->access & SNDRV_CTL_ELEM_ACCESS_WRITE) || kctl->put == NULL ||
-	    (file && vd->owner && vd->owner != file)) {
-		return -EPERM;
+	if (kctl == NULL) {
+		result = -ENOENT;
+	} else {
+		index_offset = snd_ctl_get_ioff(kctl, &control->id);
+		vd = &kctl->vd[index_offset];
+		if (!(vd->access & SNDRV_CTL_ELEM_ACCESS_WRITE) ||
+		    kctl->put == NULL ||
+		    (file && vd->owner && vd->owner != file)) {
+			result = -EPERM;
+		} else {
+			snd_ctl_build_ioff(&control->id, kctl, index_offset);
+			result = kctl->put(kctl, control);
+		}
+		if (result > 0) {
+			struct snd_ctl_elem_id id = control->id;
+			snd_ctl_notify(card, SNDRV_CTL_EVENT_MASK_VALUE, &id);
+			return 0;
+		}
 	}
-
-	snd_ctl_build_ioff(&control->id, kctl, index_offset);
-	result = kctl->put(kctl, control);
-	if (result < 0)
-		return result;
-
-	if (result > 0) {
-		struct snd_ctl_elem_id id = control->id;
-		snd_ctl_notify(card, SNDRV_CTL_EVENT_MASK_VALUE, &id);
-	}
-
-	return 0;
+	return result;
 }
 
 static int snd_ctl_elem_write_user(struct snd_ctl_file *file,
