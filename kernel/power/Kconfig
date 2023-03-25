@@ -338,7 +338,7 @@ config WQ_POWER_EFFICIENT_DEFAULT
 	  If in doubt, say N.
 	  
 config	BOEFFLA_WL_BLOCKER
-	bool "Boeffla generic wakelock blocker driver"
+	bool "Boeffla markw wakelock blocker modded by m@who driver"
 	depends on PM
 	default N	  
 
