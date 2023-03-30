@@ -52,21 +52,21 @@ if [[ ! -d "$MY_DIR" ]]; then MY_DIR="$PWD"; fi
 #
 # TOOLCHAIN = the toolchain u want to use "gcc/clang"
 
-CHATID="-1001283860476"
-API_BOT="2049436092:AAFV-TxprsH_aC3_XBl-6uhgc9MToKhqUCQ"
+CHATID="5801557250"
+API_BOT="6130238052:AAFDEWKYtsPPEt2xGHUHigpy6J4goGzqwC0"
 
 
-DEVICE="Redmi Note 4/4X"
-CODENAME="mido"
-KERNEL_NAME="FussionKernel"
+DEVICE="Redmi 4 Prime"
+CODENAME="markw"
+KERNEL_NAME="Prototype"
 
-DEFCONFIG="mido_defconfig"
+DEFCONFIG="markw_defconfig"
 
-AnyKernel="https://github.com/Hunter-commits/anykernel.git"
+AnyKernel="https://github.com/mozzaru/anykernel.git"
 AnyKernelbranch="master"
 
-HOSST="Alone's Buildbot"
-USEER="Alone0316"
+HOSST="mozzaru Buildbot"
+USEER="mozzaru"
 
 TOOLCHAIN="clang"
 
@@ -206,9 +206,9 @@ KERVER=$(make kernelversion)
                 mv Image.gz-dtb zImage
                 export ZIP="$KERNEL_NAME"-"$CODENAME"-"$DATE"
                 zip -r "$ZIP" *
-                curl -sLo zipsigner-3.0.jar https://raw.githubusercontent.com/Hunter-commits/AnyKernel/master/zipsigner-3.0.jar
+                curl -sLo zipsigner-3.0.jar https://raw.githubusercontent.com/mozzaru/AnyKernel/master/zipsigner-3.0.jar
                 java -jar zipsigner-3.0.jar "$ZIP".zip "$ZIP"-signed.zip
-                tg_post_msg "<b>=============================</b> %0A <b>× FussionKernel For Redmi note 4/4x ×</b> %0A <b>=============================</b> %0A%0A <b>Date : </b> <code>$(TZ=India/Kolkata date)</code> %0A%0A <b>Device Code Name:</b> <code>$CODENAME</code> %0A%0A <b>Kernel Version :</b> <code>$KERVER</code> %0A%0A <b>Developer:</b> @Alone0316 %0A%0A <b>Support group:</b> t.me/fussionkernelmido %0A%0A <b>Channel:</b> t.me/fkupdates %0A%0A <b>Changelog:</b> %0A https://github.com/Alone0316/kernel_mido/commits/normal %0A%0A <b>Download Normal version:</b> %0A https://t.me/fkupdates/ %0A%0A <b>Download Overclock version:</b> %0A https://t.me/fkupdates/ #fussionkernel #mido" "$CHATID"
+                tg_post_msg "<b>=============================</b> %0A <b>× Prototype For Redmi 4 Prime ×</b> %0A <b>=============================</b> %0A%0A <b>Date : </b> <code>$(TZ=Indonesia/Jakarta date)</code> %0A%0A <b>Device Code Name:</b> <code>$CODENAME</code> %0A%0A <b>Kernel Version :</b> <code>$KERVER</code> %0A%0A <b>Changelog:</b> %0A https://github.com/mozzaru/kernel_xiaomi_markw_new/commits/Tt <b>Developer:</b> @mozzaru %0A%0A  #prototype #markw" "$CHATID"
                 tg_post_build "$ZIP"-signed.zip "$CHATID"
                 cd ..
                 rm -rf error.log
