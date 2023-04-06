@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2006-2007 Adam Belay <abelay@novell.com>
  * Copyright (C) 2009 Intel Corporation
  *
@@ -35,6 +35,7 @@
 #include <linux/sched.h>
 #include <linux/cpu_pm.h>
 #include <linux/cpuhotplug.h>
+#include <linux/rcupdate.h>
 #include <soc/qcom/pm.h>
 #include <soc/qcom/event_timer.h>
 #include <soc/qcom/lpm_levels.h>
@@ -82,17 +83,14 @@ static void cluster_prepare(struct lpm_cluster *cluster,
 static bool print_parsed_dt;
 module_param_named(print_parsed_dt, print_parsed_dt, bool, 0664);
 
-static bool sleep_disabled;
-module_param_named(sleep_disabled, sleep_disabled, bool, 0664);
-
 /**
  * msm_cpuidle_get_deep_idle_latency - Get deep idle latency value
  *
  * Returns an s32 latency value
  */
-s32 msm_cpuidle_get_deep_idle_latency(void)
+inline s32 msm_cpuidle_get_deep_idle_latency(void)
 {
-	return 10;
+	return 100;
 }
 EXPORT_SYMBOL(msm_cpuidle_get_deep_idle_latency);
 
@@ -302,9 +300,6 @@ static int cpu_power_select(struct cpuidle_device *dev,
 	uint32_t lvl_latency_us = 0;
 	uint32_t next_wakeup_us = (uint32_t)sleep_us;
 	uint32_t *max_residency = get_per_cpu_max_residency(dev->cpu);
-
-	if ((sleep_disabled && !cpu_isolated(dev->cpu)) || sleep_us < 0)
-		return best_level;
 
 	idx_restrict = cpu->nlevels + 1;
 
@@ -803,7 +798,7 @@ static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 	cpu_prepare(cpu, idx, true);
 	cluster_prepare(cpu->parent, cpumask, idx, true, start_time);
 
-	trace_cpu_idle_enter(idx);
+	RCU_NONIDLE(trace_cpu_idle_enter(idx));
 	lpm_stats_cpu_enter(idx, start_time);
 
 	if (need_resched())
@@ -820,7 +815,7 @@ exit:
 	cluster_unprepare(cpu->parent, cpumask, idx, true, end_time, success);
 	cpu_unprepare(cpu, idx, true);
 	dev->last_residency = ktime_us_delta(ktime_get(), start);
-	trace_cpu_idle_exit(idx, success);
+	RCU_NONIDLE(trace_cpu_idle_exit(idx, success));
 	local_irq_enable();
 	return idx;
 }

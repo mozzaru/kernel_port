@@ -24,7 +24,8 @@
 /*
  * Timeout for stopping processes
  */
-unsigned int __read_mostly freeze_timeout_msecs = 2 * MSEC_PER_SEC;
+unsigned int __read_mostly freeze_timeout_msecs =
+	IS_ENABLED(CONFIG_ANDROID) ? MSEC_PER_SEC : 20 * MSEC_PER_SEC;
 
 static int try_to_freeze_tasks(bool user_only)
 {
@@ -64,9 +65,6 @@ static int try_to_freeze_tasks(bool user_only)
 			todo += wq_busy;
 		}
 
-		if (!todo || time_after(jiffies, end_time))
-			break;
-
 		if (pm_wakeup_pending()) {
 #ifdef CONFIG_PM_SLEEP
 			pm_get_active_wakeup_sources(suspend_abort,
@@ -76,6 +74,9 @@ static int try_to_freeze_tasks(bool user_only)
 			wakeup = true;
 			break;
 		}
+
+		if (!todo || time_after(jiffies, end_time))
+			break;
 
 		/*
 		 * We need to retry, but first give the freezing tasks some
@@ -119,7 +120,7 @@ static int try_to_freeze_tasks(bool user_only)
 #endif
 	}
 
-	return todo ? -EBUSY : 0;
+	return todo || wakeup ? -EBUSY : 0;
 }
 
 /**
@@ -143,7 +144,6 @@ int freeze_processes(void)
 	if (!pm_freezing)
 		atomic_inc(&system_freezing_cnt);
 
-	pm_wakeup_clear();
 #ifdef CONFIG_SUSPEND_LOG_DEBUG
 	pr_debug("Freezing user space processes ... ");
 #endif
