@@ -1,9 +1,9 @@
-name: mido-main
+name: markw-main
 on:
    workflow_dispatch:
 
 jobs:
-  fussionbuild:
+  prototypebuild:
        runs-on: ubuntu-latest
 
        steps:
