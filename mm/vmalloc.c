@@ -1103,7 +1103,7 @@ overflow:
 		}
 	}
 
-	if (!(gfp_mask & __GFP_NOWARN) && printk_ratelimit())
+	if (printk_ratelimit())
 		pr_warn("vmap allocation for size %lu failed: use vmalloc=<size> to increase size\n",
 			size);
 
@@ -1179,8 +1179,7 @@ static unsigned long lazy_max_pages(void)
 
 	log = fls(num_online_cpus());
 
-	return log * (1UL * CONFIG_VMAP_LAZY_PURGING_FACTOR *
-					1024 * 1024 / PAGE_SIZE);
+	return log * (32UL * 1024 * 1024 / PAGE_SIZE);
 }
 
 static atomic_long_t vmap_lazy_nr = ATOMIC_LONG_INIT(0);
@@ -2366,7 +2365,6 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 	nr_pages = get_vm_area_size(area) >> PAGE_SHIFT;
 	array_size = (nr_pages * sizeof(struct page *));
 
-	area->nr_pages = nr_pages;
 	/* Please note that the recursion is strictly bounded. */
 	if (array_size > PAGE_SIZE) {
 		pages = __vmalloc_node(array_size, 1, nested_gfp|highmem_mask,
@@ -2374,12 +2372,15 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 	} else {
 		pages = kmalloc_node(array_size, nested_gfp, node);
 	}
-	area->pages = pages;
-	if (!area->pages) {
+
+	if (!pages) {
 		remove_vm_area(area->addr);
 		kfree(area);
 		return NULL;
 	}
+
+	area->pages = pages;
+	area->nr_pages = nr_pages;
 
 	for (i = 0; i < area->nr_pages; i++) {
 		struct page *page;

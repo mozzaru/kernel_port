@@ -106,7 +106,7 @@ static void __cpu_input_boost_kick_max(struct boost_drv *b,
 	unsigned long boost_jiffies = msecs_to_jiffies(duration_ms);
 	unsigned long curr_expires, new_expires;
 
-	if (test_bit(SCREEN_OFF, &b->state))
+	if (test_bit(SCREEN_OFF, &b->state) || is_battery_saver_on())
 		return;
 
 	do {
@@ -330,6 +330,7 @@ static int __init cpu_input_boost_init(void)
 	int ret;
 
 	b->cpu_notif.notifier_call = cpu_notifier_cb;
+	b->cpu_notif.priority = INT_MAX - 2;
 	ret = cpufreq_register_notifier(&b->cpu_notif, CPUFREQ_POLICY_NOTIFIER);
 	if (ret) {
 		pr_err("Failed to register cpufreq notifier, err: %d\n", ret);

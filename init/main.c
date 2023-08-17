@@ -659,6 +659,7 @@ asmlinkage __visible void __init start_kernel(void)
 	vfs_caches_init();
 	pagecache_init();
 	signals_init();
+	seq_file_init();
 	proc_root_init();
 	nsfs_init();
 	cpuset_init();
@@ -868,8 +869,11 @@ static void __init do_initcalls(void)
 {
 	int level;
 
-	for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++)
+	for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++) {
 		do_initcall_level(level);
+		/* finish all async calls before going into next level */
+		async_synchronize_full();
+	}
 }
 
 /*

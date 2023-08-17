@@ -1,4 +1,5 @@
 /* Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1264,7 +1265,7 @@ static int _init_global_pt(struct kgsl_mmu *mmu, struct kgsl_pagetable *pt)
 		if (ret) {
 			pr_err("SMMU aperture programming call failed with error %d\n",
 									ret);
-			return ret;
+			goto done;
 		}
 	}
 

@@ -965,6 +965,41 @@ config HAVE_UNSTABLE_SCHED_CLOCK
 config GENERIC_SCHED_CLOCK
 	bool
 
+menu "FAIR Scheuler tunables"
+
+choice
+	prompt "Utilization's PELT half-Life"
+	default PELT_UTIL_HALFLIFE_32
+	help
+	  Allows choosing one of the possible values for the PELT half-life to
+	  be used for the update of the utilization of tasks and CPUs.
+	  The half-life is the amount of [ms] required by the PELT signal to
+	  build up to 50% utilization. The higher the half-life the longer it
+	  takes for a task to be represented as a big one.
+
+	  If not sure, use the default of 32 ms.
+
+config PELT_UTIL_HALFLIFE_32
+	bool "32 ms, default for server"
+
+config PELT_UTIL_HALFLIFE_16
+	bool "16 ms, suggested for interactive workloads"
+	help
+	  Use 16ms as PELT half-life value. This will increase the ramp-up and
+	  decay of utlization and load twice as fast as for the default
+	  configuration using 32ms.
+
+config PELT_UTIL_HALFLIFE_8
+	bool "8 ms, very fast"
+	help
+	  Use 8ms as PELT half-life value. This will increase the ramp-up and
+	  decay of utlization and load four time as fast as for the default
+	  configuration using 32ms.
+
+endchoice
+
+endmenu # FAIR Scheduler tunables"
+
 #
 # For architectures that want to enable the support for NUMA-affine scheduler
 # balancing logic:
@@ -2007,6 +2042,30 @@ config SLAB_FREELIST_RANDOM
 	  Randomizes the freelist order used on creating new pages. This
 	  security feature reduces the predictability of the kernel slab
 	  allocator against heap overflows.
+
+config SHUFFLE_PAGE_ALLOCATOR
+	bool "Page allocator randomization"
+	default SLAB_FREELIST_RANDOM && ACPI_NUMA
+	help
+	  Randomization of the page allocator improves the average
+	  utilization of a direct-mapped memory-side-cache. See section
+	  5.2.27 Heterogeneous Memory Attribute Table (HMAT) in the ACPI
+	  6.2a specification for an example of how a platform advertises
+	  the presence of a memory-side-cache. There are also incidental
+	  security benefits as it reduces the predictability of page
+	  allocations to compliment SLAB_FREELIST_RANDOM, but the
+	  default granularity of shuffling on the "MAX_ORDER - 1" i.e,
+	  10th order of pages is selected based on cache utilization
+	  benefits on x86.
+
+	  While the randomization improves cache utilization it may
+	  negatively impact workloads on platforms without a cache. For
+	  this reason, by default, the randomization is enabled only
+	  after runtime detection of a direct-mapped memory-side-cache.
+	  Otherwise, the randomization may be force enabled with the
+	  'page_alloc.shuffle' kernel command line parameter.
+
+	  Say Y if unsure.
 
 config SLUB_CPU_PARTIAL
 	default y

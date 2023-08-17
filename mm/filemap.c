@@ -49,8 +49,6 @@
 
 #include <asm/mman.h>
 
-int want_old_faultaround_pte = 1;
-
 /*
  * Shared mappings implemented 30.11.1994. It's not fully working yet,
  * though.
@@ -874,7 +872,7 @@ void wake_up_page_bit(struct page *page, int bit_nr)
 }
 EXPORT_SYMBOL(wake_up_page_bit);
 
-static inline int wait_on_page_bit_common(wait_queue_head_t *q,
+static inline __sched int wait_on_page_bit_common(wait_queue_head_t *q,
 		struct page *page, int bit_nr, int state, bool lock)
 {
 	struct wait_page_queue wait_page;
@@ -948,14 +946,14 @@ static inline int wait_on_page_bit_common(wait_queue_head_t *q,
 	return ret;
 }
 
-void wait_on_page_bit(struct page *page, int bit_nr)
+void __sched wait_on_page_bit(struct page *page, int bit_nr)
 {
 	wait_queue_head_t *q = page_waitqueue(page);
 	wait_on_page_bit_common(q, page, bit_nr, TASK_UNINTERRUPTIBLE, false);
 }
 EXPORT_SYMBOL(wait_on_page_bit);
 
-int wait_on_page_bit_killable(struct page *page, int bit_nr)
+int __sched wait_on_page_bit_killable(struct page *page, int bit_nr)
 {
 	wait_queue_head_t *q = page_waitqueue(page);
 	return wait_on_page_bit_common(q, page, bit_nr, TASK_KILLABLE, false);
@@ -1060,7 +1058,7 @@ EXPORT_SYMBOL_GPL(page_endio);
  * __lock_page - get a lock on the page, assuming we need to sleep to get it
  * @page: the page to lock
  */
-void __lock_page(struct page *__page)
+void __sched __lock_page(struct page *__page)
 {
 	struct page *page = compound_head(__page);
 	wait_queue_head_t *q = page_waitqueue(page);
@@ -1068,7 +1066,7 @@ void __lock_page(struct page *__page)
 }
 EXPORT_SYMBOL(__lock_page);
 
-int __lock_page_killable(struct page *__page)
+int __sched __lock_page_killable(struct page *__page)
 {
 	struct page *page = compound_head(__page);
 	wait_queue_head_t *q = page_waitqueue(page);
@@ -1087,7 +1085,7 @@ EXPORT_SYMBOL_GPL(__lock_page_killable);
  * If neither ALLOW_RETRY nor KILLABLE are set, will always return 1
  * with the page locked and the mmap_sem unperturbed.
  */
-int __lock_page_or_retry(struct page *page, struct mm_struct *mm,
+int __sched __lock_page_or_retry(struct page *page, struct mm_struct *mm,
 			 unsigned int flags)
 {
 	if (flags & FAULT_FLAG_ALLOW_RETRY) {
@@ -2489,14 +2487,6 @@ repeat:
 		if (fe->pte)
 			fe->pte += iter.index - last_pgoff;
 		last_pgoff = iter.index;
-
-		if (want_old_faultaround_pte) {
-			if (fe->address == fe->fault_address)
-				fe->flags &= ~FAULT_FLAG_PREFAULT_OLD;
-			else
-				fe->flags |= FAULT_FLAG_PREFAULT_OLD;
-		}
-
 		if (alloc_set_pte(fe, NULL, page))
 			goto unlock;
 		unlock_page(page);

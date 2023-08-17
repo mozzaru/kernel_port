@@ -217,6 +217,12 @@ static inline int task_has_dl_policy(struct task_struct *p)
 	return dl_policy(p->policy);
 }
 
+static inline void update_avg(u64 *avg, u64 sample)
+{
+	s64 diff = sample - *avg;
+	*avg += diff / 8;
+}
+
 /*
  * Tells if entity @a should preempt entity @b.
  */
@@ -2381,8 +2387,6 @@ static inline void cpufreq_update_util(struct rq *rq, unsigned int flags)
 	u64 clock;
 
 #ifdef CONFIG_SCHED_WALT
-	if (!(flags & SCHED_CPUFREQ_WALT))
-		return;
 	clock = sched_ktime_clock();
 #else
 	clock = rq_clock(rq);

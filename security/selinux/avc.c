@@ -628,7 +628,7 @@ static int avc_latest_notif_update(int seqno, int is_insert)
 	spin_lock_irqsave(&notif_lock, flag);
 	if (is_insert) {
 		if (seqno < avc_cache.latest_notif) {
-			printk(KERN_WARNING "SELinux: avc:  seqno %d < latest_notif %d\n",
+			pr_debug(KERN_WARNING "SELinux: avc:  seqno %d < latest_notif %d\n",
 			       seqno, avc_cache.latest_notif);
 			ret = -EAGAIN;
 		}
@@ -867,7 +867,7 @@ static int avc_update_node(u32 event, u32 perms, u8 driver, u8 xperm, u32 ssid,
 	if (orig->ae.xp_node) {
 		rc = avc_xperms_populate(node, orig->ae.xp_node);
 		if (rc) {
-			avc_node_kill(node);
+			kmem_cache_free(avc_node_cachep, node);
 			goto out_unlock;
 		}
 	}
