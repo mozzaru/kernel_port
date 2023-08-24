@@ -4811,12 +4811,6 @@ static int smbchg_restricted_charging(struct smbchg_chip *chip, bool enable)
 	return rc;
 }
 
-#ifdef (CONFIG_MACH_XIAOMI_MARKW)
-extern void ist30xx_set_ta_mode(bool mode);
-extern void tpd_usb_plugin(bool mode);
-extern void gtp_usb_plugin(bool mode);
-int set_usb_charge_mode_par = 0;
-#endif
 static void handle_usb_removal(struct smbchg_chip *chip)
 {
 	struct power_supply *parallel_psy = get_parallel_psy(chip);
