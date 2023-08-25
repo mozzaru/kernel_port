@@ -1,8 +1,0 @@
-#include "markw-general.dtsi"
-#include "markw-pinctrl.dtsi"
-#include "markw-pm.dtsi"
-#include "markw-regulator.dtsi"
-#include "markw-audio.dtsi"
-#include "markw-mdss.dtsi"
-#include "markw-qrd.dtsi"
-#include "markw-camera.dtsi"
