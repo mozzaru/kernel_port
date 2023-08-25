@@ -12,9 +12,11 @@
  */
 
 &int_codec {
-	qcom,msm-mbhc-hphl-swh = <1>;
+        status = "okay";
+        qcom,model = "msm8953-snd-card-mtp";
+        qcom,msm-mbhc-hphl-swh = <1>;
         ext-spk-amp-gpio = <&tlmm 96 0>;
-	qcom,audio-routing =
+	    qcom,audio-routing =
 		"RX_BIAS", "MCLK",
 		"SPK_RX_BIAS", "MCLK",
 		"INT_LDO_H", "MCLK",
@@ -29,11 +31,6 @@
 	/delete-property/ msm-vdd-wsa-switch-supply;
 	/delete-property/ qcom,msm-vdd-wsa-switch-voltage;
 	/delete-property/ qcom,msm-vdd-wsa-switch-current;
-		/delete-property/ qcom,msm-gpios;
-	/delete-property/ qcom,pinctrl-names;
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
-	/delete-property/ pinctrl-1;
 };
 
 &wsa881x_i2c_f {
@@ -54,8 +51,4 @@
 
 &wsa881x_analog_reset_gpio {
         status = "disabled";
-};
-
-&int_codec {
-	qcom,model = "msm8953-snd-card-mtp";
 };
