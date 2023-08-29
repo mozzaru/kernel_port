@@ -23,6 +23,9 @@
 #include <asm/cpu.h>
 #include <asm/cputype.h>
 #include <asm/cpufeature.h>
+#include <uapi/linux/psci.h>
+#include <linux/arm-smccc.h>
+#include <linux/psci.h>
 #include <asm/vectors.h>
 
 static bool __maybe_unused
@@ -572,6 +575,13 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.cpu_enable = cpu_enable_trap_ctr_access,
 	},
 #ifdef CONFIG_HARDEN_BRANCH_PREDICTOR
+#ifdef CONFIG_PSCI_BP_HARDENING
+	{
+		.capability = ARM64_HARDEN_BRANCH_PREDICTOR,
+		ERRATA_MIDR_RANGE_LIST(arm64_psci_bp_harden_cpus),
+		.cpu_enable = enable_psci_bp_hardening,
+	},
+#endif
 	{
 		.capability = ARM64_HARDEN_BRANCH_PREDICTOR,
 		ERRATA_MIDR_RANGE_LIST(arm64_bp_harden_smccc_cpus),

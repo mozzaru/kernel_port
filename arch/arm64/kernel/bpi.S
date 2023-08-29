@@ -153,3 +153,5 @@ ENTRY(__spectre_bhb_clearbhb_start)
 	hint	#22	/* aka clearbhb */
 	isb
 ENTRY(__spectre_bhb_clearbhb_end)
+.#endif
+

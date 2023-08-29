@@ -4407,7 +4407,7 @@ VOS_STATUS  csrNeighborRoamNeighborLookupDownEvent(tpAniSirGlobal pMac)
 {
     tpCsrNeighborRoamControlInfo    pNeighborRoamInfo = &pMac->roam.neighborRoamInfo;
     VOS_STATUS  vosStatus = VOS_STATUS_SUCCESS;
-    eHalStatus __maybe_unused status = eHAL_STATUS_SUCCESS;
+    eHalStatus  status = eHAL_STATUS_SUCCESS;
 
     switch (pNeighborRoamInfo->neighborRoamState)
     {
@@ -5712,7 +5712,7 @@ eHalStatus csrNeighborRoamCandidateFoundIndHdlr(tpAniSirGlobal pMac, void* pMsg)
         csrScanFlushSelectiveSsid(pMac, pSession->connectedProfile.SSID.ssId,
                                   pSession->connectedProfile.SSID.length);
         /* Once it gets the candidates found indication from PE, will issue a scan
-         - req to PE with \93freshScan\94 in scanreq structure set as follows:
+         - req to PE with “freshScan” in scanreq structure set as follows:
          0x42 - Return & purge LFR scan results
         */
         status = csrScanRequestLfrResult(pMac, pNeighborRoamInfo->csrSessionId,

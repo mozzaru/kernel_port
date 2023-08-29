@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, 2019 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,6 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
 
 #include <linux/of.h>
 #include <linux/module.h>
@@ -104,6 +105,10 @@ static int camera_v4l2_querycap(struct file *filep, void *fh,
 		return rc;
 
 	rc = camera_check_event_status(&event);
+
+	cap->device_caps = V4L2_CAP_STREAMING |
+			V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_VIDEO_CAPTURE;
+	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 
 	return rc;
 }
@@ -211,7 +216,6 @@ static int camera_v4l2_s_ctrl(struct file *filep, void *fh,
 	int rc = 0;
 	struct v4l2_event event;
 	struct msm_v4l2_event_data *event_data;
-
 	if (ctrl->id >= V4L2_CID_PRIVATE_BASE) {
 		camera_pack_event(filep, MSM_CAMERA_SET_PARM, ctrl->id,
 		ctrl->value, &event);
@@ -235,7 +239,6 @@ static int camera_v4l2_reqbufs(struct file *filep, void *fh,
 	struct camera_v4l2_private *sp = fh_to_private(fh);
 	struct msm_video_device *pvdev = video_drvdata(filep);
 	unsigned int session_id = pvdev->vdev->num;
-
 	session = msm_session_find(session_id);
 	if (WARN_ON(!session))
 		return -EIO;
@@ -259,7 +262,6 @@ static int camera_v4l2_qbuf(struct file *filep, void *fh,
 	struct camera_v4l2_private *sp = fh_to_private(fh);
 		struct msm_video_device *pvdev = video_drvdata(filep);
 	unsigned int session_id = pvdev->vdev->num;
-
 	session = msm_session_find(session_id);
 	if (WARN_ON(!session))
 		return -EIO;
@@ -277,7 +279,6 @@ static int camera_v4l2_dqbuf(struct file *filep, void *fh,
 	struct camera_v4l2_private *sp = fh_to_private(fh);
 		struct msm_video_device *pvdev = video_drvdata(filep);
 	unsigned int session_id = pvdev->vdev->num;
-
 	session = msm_session_find(session_id);
 	if (WARN_ON(!session))
 		return -EIO;
@@ -504,8 +505,7 @@ static long camera_v4l2_vidioc_private_ioctl(struct file *filep, void *fh,
 
 	switch (k_ioctl->id) {
 	case MSM_CAMERA_PRIV_IOCTL_ID_RETURN_BUF: {
-		struct msm_camera_return_buf ptr;
-		struct msm_camera_return_buf __user *tmp = NULL;
+		struct msm_camera_return_buf ptr, *tmp = NULL;
 
 		MSM_CAM_GET_IOCTL_ARG_PTR(&tmp, &k_ioctl->ioctl_ptr,
 			sizeof(tmp));
@@ -558,8 +558,10 @@ static int camera_v4l2_fh_open(struct file *filep)
 	unsigned long stream_id;
 
 	sp = kzalloc(sizeof(*sp), GFP_KERNEL);
-	if (!sp)
+	if (!sp) {
+		pr_err("%s : memory not available\n", __func__);
 		return -ENOMEM;
+	}
 
 	filep->private_data = &sp->fh;
 
@@ -584,10 +586,10 @@ static int camera_v4l2_fh_release(struct file *filep)
 	if (sp) {
 		v4l2_fh_del(&sp->fh);
 		v4l2_fh_exit(&sp->fh);
-		mutex_destroy(&sp->lock);
-		kzfree(sp);
 	}
 
+	mutex_destroy(&sp->lock);
+	kzfree(sp);
 	return 0;
 }
 
@@ -641,9 +643,7 @@ static int camera_v4l2_open(struct file *filep)
 	struct v4l2_event event;
 	struct msm_video_device *pvdev = video_drvdata(filep);
 	unsigned long opn_idx, idx;
-
-	if (WARN_ON(!pvdev))
-		return -EIO;
+	BUG_ON(!pvdev);
 
 	mutex_lock(&pvdev->video_drvdata_mutex);
 	rc = camera_v4l2_fh_open(filep);
@@ -701,6 +701,8 @@ static int camera_v4l2_open(struct file *filep)
 			if (rc < 0)
 				goto post_fail;
 		}
+		/* Enable power collapse latency */
+		msm_pm_qos_update_request(CAMERA_ENABLE_PC_LATENCY);
 	} else {
 		rc = msm_create_command_ack_q(pvdev->vdev->num,
 			find_first_zero_bit((const unsigned long *)&opn_idx,
@@ -711,9 +713,8 @@ static int camera_v4l2_open(struct file *filep)
 			goto stream_fail;
 		}
 	}
-	idx |= (1UL <<
-		find_first_zero_bit((const unsigned long *)&opn_idx,
-		MSM_CAMERA_STREAM_CNT_BITS));
+	idx |= (1 << find_first_zero_bit((const unsigned long *)&opn_idx,
+				MSM_CAMERA_STREAM_CNT_BITS));
 	atomic_cmpxchg(&pvdev->opened, opn_idx, idx);
 	mutex_unlock(&pvdev->video_drvdata_mutex);
 
@@ -740,7 +741,6 @@ static unsigned int camera_v4l2_poll(struct file *filep,
 {
 	int rc = 0;
 	struct camera_v4l2_private *sp = fh_to_private(filep->private_data);
-
 	if (sp->is_vb2_valid == 1)
 		rc = vb2_poll(&sp->vb2_q, filep, wait);
 
@@ -758,10 +758,7 @@ static int camera_v4l2_close(struct file *filep)
 	struct camera_v4l2_private *sp = fh_to_private(filep->private_data);
 	unsigned int opn_idx, mask;
 	struct msm_session *session;
-
-	if (WARN_ON(!pvdev))
-		return -EIO;
-
+	BUG_ON(!pvdev);
 	session = msm_session_find(pvdev->vdev->num);
 	if (WARN_ON(!session))
 		return -EIO;
@@ -793,13 +790,10 @@ static int camera_v4l2_close(struct file *filep)
 		msm_delete_stream(pvdev->vdev->num, sp->stream_id);
 		mutex_unlock(&session->close_lock);
 		/* This should take care of both normal close
-		 * and application crashes
-		 */
+		 * and application crashes */
 		camera_v4l2_vb2_q_release(filep);
 		msm_destroy_session(pvdev->vdev->num);
 
-		/* Enable power collapse latency */
-		msm_pm_qos_update_request(CAMERA_ENABLE_PC_LATENCY);
 		pm_relax(&pvdev->vdev->dev);
 	} else {
 		msm_delete_command_ack_q(pvdev->vdev->num,
@@ -837,7 +831,7 @@ static long camera_handle_internal_compat_ioctl(struct file *file,
 				k_ioctl.id, k_ioctl.size);
 			return -EINVAL;
 		}
-		k_ioctl.ioctl_ptr = (__force __u64 __user)tmp_compat_ioctl_ptr;
+		k_ioctl.ioctl_ptr = (__u64)tmp_compat_ioctl_ptr;
 		if (!k_ioctl.ioctl_ptr) {
 			pr_debug("Invalid ptr for id %d", k_ioctl.id);
 			return -EINVAL;
@@ -853,7 +847,7 @@ static long camera_handle_internal_compat_ioctl(struct file *file,
 	return rc;
 }
 
-static long camera_v4l2_compat_ioctl(struct file *file, unsigned int cmd,
+long camera_v4l2_compat_ioctl(struct file *file, unsigned int cmd,
 	unsigned long arg)
 {
 	long ret = 0;
@@ -931,7 +925,7 @@ int camera_init_v4l2(struct device *dev, unsigned int *session)
 	rc = media_entity_pads_init(&pvdev->vdev->entity, 0, NULL);
 	if (WARN_ON(rc < 0))
 		goto entity_fail;
-	pvdev->vdev->entity.function = QCAMERA_VNODE_GROUP_ID;
+	pvdev->vdev->entity.group_id = QCAMERA_VNODE_GROUP_ID;
 #endif
 
 	v4l2_dev->notify = NULL;
@@ -947,7 +941,6 @@ int camera_init_v4l2(struct device *dev, unsigned int *session)
 	pvdev->vdev->ioctl_ops = &camera_v4l2_ioctl_ops;
 	pvdev->vdev->minor     = -1;
 	pvdev->vdev->vfl_type  = VFL_TYPE_GRABBER;
-	pvdev->vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
 	rc = video_register_device(pvdev->vdev,
 		VFL_TYPE_GRABBER, -1);
 	if (WARN_ON(rc < 0))

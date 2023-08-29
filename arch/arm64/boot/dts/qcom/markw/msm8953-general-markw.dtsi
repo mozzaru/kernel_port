@@ -163,7 +163,11 @@
 		reg = <0xa0128 0x4>;
 		reg-names = "sn-base";
 	};
-
+    pstore_reserve_mem: pstore_reserve_mem_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x9ff00000 0x0 0x00100000>;
+    };
 	usb3: ssusb@7000000 {
 		vbus_dwc3-supply = <&smbcharger_charger_otg>;
 		qcom,detect-dpdm-floating;

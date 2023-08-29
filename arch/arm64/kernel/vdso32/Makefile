@@ -5,9 +5,15 @@
 # A mix between the arm64 and arm vDSO Makefiles.
 
 ifeq ($(cc-name),clang)
-  CC_ARM32 := $(CC) $(CLANG_TARGET_ARM32) -no-integrated-as $(CLANG_GCC32_TC) $(CLANG_PREFIX32)
+CC_ARM32 := $(CC) $(CLANG_TARGET_ARM32) $(CLANG_GCC32_TC) $(CLANG_PREFIX32)
+ifneq ($(LLVM),)
+LD_ARM32 ?= $(LD)
 else
-  CC_ARM32 ?= $(CROSS_COMPILE_ARM32)$(cc-name)
+LD_ARM32 ?= $(CROSS_COMPILE_ARM32)ld
+endif
+else
+CC_ARM32 := $(CROSS_COMPILE_ARM32)$(cc-name)
+LD_ARM32 ?= $(CROSS_COMPILE_ARM32)ld
 endif
 
 # Same as cc-*option, but using CC_ARM32 instead of CC
@@ -15,8 +21,6 @@ cc32-option = $(call try-run,\
         $(CC_ARM32) $(1) -c -x c /dev/null -o "$$TMP",$(1),$(2))
 cc32-disable-warning = $(call try-run,\
 	$(CC_ARM32) -W$(strip $(1)) -c -x c /dev/null -o "$$TMP",-Wno-$(strip $(1)))
-cc32-ldoption = $(call try-run,\
-        $(CC_ARM32) $(1) -nostdlib -x c /dev/null -o "$$TMP",$(1),$(2))
 
 # We cannot use the global flags to compile the vDSO files, the main reason
 # being that the 32-bit compiler may be older than the main (64-bit) compiler
@@ -58,13 +62,8 @@ VDSO_CAFLAGS += -DDISABLE_BRANCH_PROFILING
 # Try to compile for ARMv8. If the compiler is too old and doesn't support it,
 # fall back to v7. There is no easy way to check for what architecture the code
 # is being compiled, so define a macro specifying that (see arch/arm/Makefile).
-ifndef CONFIG_ARCH_MSM8953
 VDSO_CAFLAGS += $(call cc32-option,-march=armv8-a -D__LINUX_ARM_ARCH__=8,\
                                    -march=armv7-a -D__LINUX_ARM_ARCH__=7)
-else
-# Always compile for ARMv8 as compilers supported by AOSP support this.
-VDSO_CAFLAGS += -D__LINUX_ARM_ARCH__=8
-endif
 
 VDSO_CFLAGS := $(VDSO_CAFLAGS)
 # KBUILD_CFLAGS from top-level Makefile
@@ -73,7 +72,11 @@ VDSO_CFLAGS += -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
                -Werror-implicit-function-declaration \
                -Wno-format-security \
                -std=gnu89
+ifeq ($(cc-name),clang)
 VDSO_CFLAGS  += -O3
+else
+VDSO_CFLAGS  += -O2
+endif
 # Some useful compiler-dependent flags from top-level Makefile
 VDSO_CFLAGS += $(call cc32-option,-Wdeclaration-after-statement,)
 VDSO_CFLAGS += $(call cc32-option,-Wno-pointer-sign)
@@ -92,50 +95,13 @@ VDSO_CFLAGS += -D__uint128_t='void*'
 VDSO_CFLAGS += $(call cc32-disable-warning,shift-count-overflow)
 VDSO_CFLAGS += -Wno-int-to-pointer-cast
 
-# Compile as THUMB2 or ARM. Unwinding via frame-pointers in THUMB2 is
-# unreliable.
-ifeq ($(CONFIG_THUMB2_COMPAT_VDSO), y)
-VDSO_CFLAGS += -mthumb -fomit-frame-pointer
-else
-VDSO_CFLAGS += -marm
-endif
-
-ifeq ($(cc-name),clang)
-# Snapdragon LLVM specific warning
-VDSO_CFLAGS += $(call cc32-disable-warning, vectorizer-no-neon)
-endif
-
 VDSO_AFLAGS := $(VDSO_CAFLAGS)
 VDSO_AFLAGS += -D__ASSEMBLY__
 
-# Makefile doesn't provide any way to check for 32-bit compiler version and we want to mess with it
-# as minimum as possible.
-ifdef CONFIG_ARCH_MSM8953
-ifeq ($(cc-name),clang)
-# big.LITTLE / DynamIQ optimizations are not supported
-MACH32_CFLAGS := $(call cc32-option, -mcpu=cortex-a53)
-MACH32_CFLAGS += $(call cc32-option, -mtune=cortex-a53)
-else
-MACH32_CFLAGS := $(call cc32-option, -mcpu=cortex-a53, \
-		  $(call cc32-option, -mcpu=cortex-a53))
-MACH32_CFLAGS += $(call cc32-option, -mcpu=cortex-a53, \
-		  $(call cc32-option, -mtune=cortex-a53))
-endif
-# Assembler doesn't like big.LITTLE / DynamIQ setup so we optimize assembly codes for LITTLE CPU
-MACH32_AFLAGS := -Wa,$(strip $(call cc32-option, -mcpu=cortex-a53))
-# Append result to VDSO_CFLAGS and VDSO_AFLAGS
-VDSO_CFLAGS += $(strip $(MACH32_CFLAGS) $(MACH32_AFLAGS))
-VDSO_AFLAGS += $(strip $(MACH32_AFLAGS))
-endif
-
-VDSO_LDFLAGS := $(VDSO_CPPFLAGS)
 # From arm vDSO Makefile
-VDSO_LDFLAGS += -Wl,-Bsymbolic -Wl,--no-undefined -Wl,-soname=linux-vdso.so.1
-VDSO_LDFLAGS += -Wl,-z,max-page-size=4096 -Wl,-z,common-page-size=4096
-VDSO_LDFLAGS += -nostdlib -shared -mfloat-abi=soft
-VDSO_LDFLAGS += $(call cc32-ldoption,-Wl$(comma)--hash-style=sysv)
-VDSO_LDFLAGS += $(call cc32-ldoption,-Wl$(comma)--build-id)
-VDSO_LDFLAGS += $(call cc32-ldoption,-fuse-ld=bfd)
+VDSO_LDFLAGS += -Bsymbolic --no-undefined -soname=linux-vdso.so.1
+VDSO_LDFLAGS += -z max-page-size=4096 -z common-page-size=4096
+VDSO_LDFLAGS += -nostdlib -shared --hash-style=sysv --build-id
 
 
 # Borrow vdsomunge.c from the arm vDSO
@@ -183,8 +149,8 @@ $(asm-obj-vdso): %.o: %.S FORCE
 
 # Actual build commands
 quiet_cmd_vdsold = VDSOL32   $@
-      cmd_vdsold = $(CC_ARM32) -Wp,-MD,$(depfile) $(VDSO_LDFLAGS) \
-                   -Wl,-T $(filter %.lds,$^) $(filter %.o,$^) -o $@
+      cmd_vdsold = $(LD_ARM32) $(VDSO_LDFLAGS) \
+                   -T $(filter %.lds,$^) $(filter %.o,$^) -o $@
 quiet_cmd_vdsocc = VDSOC32   $@
       cmd_vdsocc = $(CC_ARM32) -Wp,-MD,$(depfile) $(VDSO_CFLAGS) -c -o $@ $<
 quiet_cmd_vdsoas = VDSOA32   $@

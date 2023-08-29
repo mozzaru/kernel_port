@@ -1900,7 +1900,7 @@ static int xfrm_get_policy(struct sk_buff *skb, struct nlmsghdr *nlh,
 	if (attrs[XFRMA_IF_ID])
 		if_id = nla_get_u32(attrs[XFRMA_IF_ID]);
 
-	xfrm_mark_get(attrs, &m);
+        xfrm_mark_get(attrs, &m);
 
 	if (p->index)
 		xp = xfrm_policy_byid(net, &m, if_id, type, p->dir, p->index, delete, &err);

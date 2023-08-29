@@ -1178,8 +1178,6 @@ static unsigned long zram_entry_handle(struct zram *zram,
 		return (unsigned long)entry;
 }
 
-
-
 static struct zram_entry *zram_entry_alloc(struct zram *zram,
 					   unsigned int len, gfp_t flags)
 {
@@ -1188,7 +1186,6 @@ static struct zram_entry *zram_entry_alloc(struct zram *zram,
 
 	handle = zs_malloc(zram->mem_pool, len, flags);
 	if (!handle)
-
 		return NULL;
 
 	if (!zram_dedup_enabled(zram))
@@ -1208,7 +1205,6 @@ static struct zram_entry *zram_entry_alloc(struct zram *zram,
 }
 
 void zram_entry_free(struct zram *zram, struct zram_entry *entry)
-
 {
 	if (!zram_dedup_put_entry(zram, entry))
 		return;
@@ -1320,7 +1316,7 @@ out:
 static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 				struct bio *bio, bool partial_io)
 {
-	struct zcomp_strm *zstrm;
+	int ret;
 	struct zram_entry *entry;
 	unsigned int size;
 	void *src, *dst;
@@ -1340,8 +1336,6 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 				bio, partial_io);
 	}
 
-
-
 	entry = zram_get_entry(zram, index);
 	if (!entry || zram_test_flag(zram, index, ZRAM_SAME)) {
 		unsigned long value;
@@ -1357,13 +1351,8 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 
 	size = zram_get_obj_size(zram, index);
 
-	if (size != PAGE_SIZE)
-		zstrm = zcomp_stream_get(zram->comp);
-
 	src = zs_map_object(zram->mem_pool,
 			    zram_entry_handle(zram, entry), ZS_MM_RO);
-
-
 	if (size == PAGE_SIZE) {
 		dst = kmap_atomic(page);
 		memcpy(dst, src, PAGE_SIZE);
@@ -1429,7 +1418,7 @@ static int __zram_bvec_write(struct zram *zram, struct bio_vec *bvec,
 	void *src, *dst, *mem;
 	struct zcomp_strm *zstrm;
 	struct page *page = bvec->bv_page;
-	u64 checksum;
+	u32 checksum;
 	unsigned long element = 0;
 	enum zram_pageflags flags = 0;
 
@@ -2218,11 +2207,6 @@ static int __init zram_init(void)
 	int ret;
 
 	BUILD_BUG_ON(__NR_ZRAM_PAGEFLAGS > BITS_PER_LONG);
-
-	ret = cpuhp_setup_state_multi(CPUHP_ZCOMP_PREPARE, "block/zram:prepare",
-				      zcomp_cpu_up_prepare, zcomp_cpu_dead);
-	if (ret < 0)
-		return ret;
 
 	ret = class_register(&zram_control_class);
 	if (ret) {

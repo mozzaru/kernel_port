@@ -981,9 +981,9 @@ EXPORT_SYMBOL_GPL(clk_byte2_ops);
 static const struct frac_entry frac_table_pixel[] = {
 	{ 1, 1 },
 	{ 4, 9 },
+	{ 2, 3 },
 	{ 3, 8 },
 	{ 2, 9 },
-	{ 2, 3 },
 	{ }
 };
 

@@ -120,11 +120,9 @@ static void vos_linux_timer_callback(vos_timer_t *timer)
    v_PVOID_t userData=NULL;
    int threadId;
    VOS_TIMER_TYPE type=VOS_TIMER_TYPE_SW;
-#ifdef WLAN_LOGGING_SOCK_SVC_ENABLE
    v_CONTEXT_t vos_context = NULL;
    pVosContextType vos_global_context;
    vos_wdthread_timer_work_t *wdthread_timer_work;
-#endif
 
    VOS_ASSERT(timer);
 
@@ -1048,7 +1046,7 @@ void vos_wdthread_init_timer_work(void *callbackptr)
  * Flush watchdog thread timer work structure.
  * return - void
  */
-void vos_wdthread_flush_timer_work()
+void vos_wdthread_flush_timer_work(void)
 {
    pVosContextType context;
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -181,6 +181,7 @@ struct cci_device {
 	struct workqueue_struct *write_wq[MASTER_MAX];
 	struct msm_camera_cci_wait_sync_cfg cci_wait_sync_cfg;
 	uint8_t valid_sync;
+	struct mutex *cci_init_mutex;
 };
 
 enum msm_cci_i2c_cmd_type {

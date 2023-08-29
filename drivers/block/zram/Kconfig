@@ -17,7 +17,6 @@ config ZRAM
 config ZRAM_DEDUP
 	bool "Deduplication support for ZRAM data"
 	depends on ZRAM
-	select XXHASH
 	default n
 	help
 	  Deduplicate ZRAM data to reduce amount of memory consumption.
@@ -46,7 +45,7 @@ config ZRAM_WRITEBACK
 
 config ZRAM_MEMORY_TRACKING
 	bool "Track zRam block status"
-	depends on ZRAM && DEBUG_FS
+	depends on ZRAM && ANDROID
 	help
 	  With this feature, admin can track the state of allocated blocks
 	  of zRAM. Admin could see the information via
@@ -56,4 +55,5 @@ config ZRAM_MEMORY_TRACKING
 
 config ZRAM_DEFAULT_COMP_ALGORITHM
 	string "Default ZRAM algorithm"
-	default "lzo-rle"
+	default "lzo"
+

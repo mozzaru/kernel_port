@@ -19,6 +19,12 @@ mounts-$(CONFIG_BLK_DEV_INITRD)	+= do_mounts_initrd.o
 mounts-$(CONFIG_BLK_DEV_MD)	+= do_mounts_md.o
 mounts-$(CONFIG_BLK_DEV_DM)	+= do_mounts_dm.o
 
+ifneq ($(PLATFORM_VERSION),)
+CFLAGS_main.o += -DCONFIG_DEFAULT_ANDROID_VERSION=$(PLATFORM_VERSION)
+else
+CFLAGS_main.o += -DCONFIG_DEFAULT_ANDROID_VERSION=9
+endif
+
 # dependencies on generated files need to be listed explicitly
 $(obj)/version.o: include/generated/compile.h
 
@@ -32,5 +38,6 @@ $(obj)/version.o: include/generated/compile.h
 silent_chk_compile.h = :
 include/generated/compile.h: FORCE
 	@$($(quiet)chk_compile.h)
-	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/mkcompile_h $@ \
-	"$(UTS_MACHINE)" "$(CONFIG_SMP)" "$(CONFIG_PREEMPT)" "$(CC) $(KBUILD_CFLAGS)"
+	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/mkcompile_h $@	\
+	"$(UTS_MACHINE)" "$(CONFIG_SMP)" "$(CONFIG_PREEMPT)"	\
+	"$(CC) $(KBUILD_CFLAGS)" "$(LD)"

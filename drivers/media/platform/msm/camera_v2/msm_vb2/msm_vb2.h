@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -46,15 +46,14 @@ struct msm_vb2_private_data {
 	void *vaddr;
 	unsigned long size;
 	/* Offset of the plane inside the buffer */
-	struct device *alloc_ctx;
+	void *alloc_ctx;
 };
 
 struct msm_stream {
 	struct list_head list;
 
 	/* stream index per session, same
-	 * as stream_id but set through s_parm
-	 */
+	 * as stream_id but set through s_parm */
 	unsigned int stream_id;
 	/* vb2 buffer handling */
 	struct vb2_queue *vb2_q;

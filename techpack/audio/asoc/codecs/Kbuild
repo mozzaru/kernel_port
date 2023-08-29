@@ -127,6 +127,15 @@ ifdef CONFIG_SND_SOC_WSA881X_ANALOG
 	WSA881X_ANALOG_OBJS += wsa881x-regmap-analog.o
 endif
 
+ifdef CONFIG_SND_SOC_TAS2557
+        TAS2557_OBJS += tas2557-core.o
+        TAS2557_OBJS += tas2557-misc.o
+        TAS2557_OBJS += tas2557-codec.o
+        TAS2557_OBJS += tas2557-regmap.o
+        TAS2557_OBJS += tiload.o
+        CFLAGS_tas2557-misc.o += $(call cc-option, -Wno-shift-overflow)
+endif
+
 ifdef CONFIG_SND_SOC_MSM_STUB
 	STUB_OBJS += msm_stub.o
 endif
@@ -175,20 +184,6 @@ CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 
 KBUILD_CPPFLAGS += $(CDEFINES)
 
-# Currently, for versions of gcc which support it, the kernel Makefile
-# is disabling the maybe-uninitialized warning.  Re-enable it for the
-# AUDIO driver.  Note that we must use EXTRA_CFLAGS here so that it
-# will override the kernel settings.
-ifeq ($(call cc-option-yn, -Wmaybe-uninitialized),y)
-EXTRA_CFLAGS += -Wmaybe-uninitialized
-endif
-#EXTRA_CFLAGS += -Wmissing-prototypes
-
-ifeq ($(call cc-option-yn, -Wheader-guard),y)
-EXTRA_CFLAGS += -Wheader-guard
-endif
-
-
 ifeq ($(KERNEL_BUILD), 0)
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/ipc/Module.symvers
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/dsp/Module.symvers
@@ -215,6 +210,9 @@ wsa881x_dlkm-y := $(WSA881X_OBJS)
 
 obj-$(CONFIG_SND_SOC_WSA881X_ANALOG) += wsa881x_analog_dlkm.o
 wsa881x_analog_dlkm-y := $(WSA881X_ANALOG_OBJS)
+
+obj-$(CONFIG_SND_SOC_TAS2557) += tas2557_dlkm.o
+tas2557_dlkm-y := $(TAS2557_OBJS)
 
 obj-$(CONFIG_SND_SOC_MSM_STUB) += stub_dlkm.o
 stub_dlkm-y := $(STUB_OBJS)

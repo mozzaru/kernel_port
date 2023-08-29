@@ -2689,7 +2689,7 @@ static irqreturn_t labibb_sc_err_handler(int irq, void *_labibb)
 					ktime_set(SC_ERR_COUNT_INTERVAL_SEC, 0),
 					HRTIMER_MODE_REL);
 		}
-		schedule_delayed_work(&labibb->sc_err_recovery_work,
+		queue_delayed_work(system_power_efficient_wq, &labibb->sc_err_recovery_work,
 				msecs_to_jiffies(SC_ERR_RECOVERY_DELAY_MS));
 	}
 
@@ -3065,7 +3065,7 @@ static int register_qpnp_lab_regulator(struct qpnp_labibb *labibb,
 		return rc;
 	}
 
-	if (!(val & (IBB_ENABLE_CTL_SWIRE_RDY | IBB_ENABLE_CTL_MODULE_EN))) {
+	if (1) {
 		/* SWIRE_RDY and IBB_MODULE_EN not enabled */
 		rc = qpnp_lab_dt_init(labibb, of_node);
 		if (rc < 0) {

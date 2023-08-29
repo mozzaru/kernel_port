@@ -107,7 +107,7 @@ enum dsi_panel_status_mode {
 	ESD_BTA,
 	ESD_REG,
 	ESD_REG_NT35596,
-#ifdef CONFIG_MACH_XIAOMI_C6
+#ifdef CONFIG_MACH_XIAOMI_MARKW
 	ESD_TE_NT35596,
 #endif
 	ESD_TE,
@@ -229,6 +229,10 @@ enum dsi_pm_type {
 extern struct device dsi_dev;
 extern u32 dsi_irq;
 extern struct mdss_dsi_ctrl_pdata *ctrl_list[];
+
+extern bool synaptics_gesture_func_on;
+extern bool synaptics_gesture_func_on_lansi;
+extern bool NVT_gesture_func_on;
 
 enum {
 	DSI_CTRL_0,
@@ -479,6 +483,26 @@ struct mdss_dsi_ctrl_pdata {
 	struct mdss_intf_recovery *recovery;
 	struct mdss_intf_recovery *mdp_callback;
 
+
+	struct dsi_panel_cmds CABC_on_cmds;
+	struct dsi_panel_cmds CABC_off_cmds;
+	struct dsi_panel_cmds CE_on_cmds;
+	struct dsi_panel_cmds CE_off_cmds;
+	struct dsi_panel_cmds cold_gamma_cmds;
+	struct dsi_panel_cmds warm_gamma_cmds;
+	struct dsi_panel_cmds default_gamma_cmds;
+	struct dsi_panel_cmds white_gamma_cmds;
+	struct dsi_panel_cmds sRGB_on_cmds;
+	struct dsi_panel_cmds sRGB_off_cmds;
+	struct dsi_panel_cmds PM1_cmds;
+	struct dsi_panel_cmds PM2_cmds;
+	struct dsi_panel_cmds PM3_cmds;
+	struct dsi_panel_cmds PM4_cmds;
+	struct dsi_panel_cmds PM5_cmds;
+	struct dsi_panel_cmds PM6_cmds;
+	struct dsi_panel_cmds PM7_cmds;
+	struct dsi_panel_cmds PM8_cmds;
+
 	struct dsi_panel_cmds on_cmds;
 	struct dsi_panel_cmds post_dms_on_cmds;
 	struct dsi_panel_cmds post_panel_on_cmds;
@@ -661,7 +685,7 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp);
 void mdss_dsi_cmdlist_kickoff(int intf);
 int mdss_dsi_bta_status_check(struct mdss_dsi_ctrl_pdata *ctrl);
 int mdss_dsi_reg_status_check(struct mdss_dsi_ctrl_pdata *ctrl);
-#ifdef CONFIG_MACH_XIAOMI_C6
+#ifdef CONFIG_MACH_XIAOMI_MARKW
 int mdss_dsi_TE_NT35596_check(struct mdss_dsi_ctrl_pdata *ctrl);
 #endif
 bool __mdss_dsi_clk_enabled(struct mdss_dsi_ctrl_pdata *ctrl, u8 clk_type);
@@ -697,7 +721,13 @@ int mdss_dsi_phy_pll_reset_status(struct mdss_dsi_ctrl_pdata *ctrl);
 int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata, int power_state);
 void mdss_dsi_ctrl_phy_reset(struct mdss_dsi_ctrl_pdata *ctrl);
 
+#ifdef CONFIG_DEBUG_FS
 void mdss_dsi_debug_bus_init(struct mdss_dsi_data *sdata);
+#else
+static inline void mdss_dsi_debug_bus_init(struct mdss_dsi_data *sdata)
+{
+}
+#endif
 
 static inline const char *__mdss_dsi_pm_name(enum dsi_pm_type module)
 {
@@ -721,6 +751,16 @@ static inline const char *__mdss_dsi_pm_supply_node_name(
 	default:		return "???";
 	}
 }
+
+struct NVT_CSOT_ESD{
+	bool nova_csot_panel;
+	bool ESD_TE_status;
+};
+struct NVT_CSOT_ESD *get_nvt_csot_esd_status(void);
+
+void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
+			struct dsi_panel_cmds *pcmds, u32 flags);
+
 
 static inline u32 mdss_dsi_get_hw_config(struct dsi_shared_data *sdata)
 {

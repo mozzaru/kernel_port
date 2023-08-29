@@ -17,6 +17,8 @@
 #include <linux/syscore_ops.h>
 #include <linux/uaccess.h>
 
+bool pullDownReset = false;
+
 /*
  * this indicates whether you can reboot with ctrl-alt-del: the default is yes
  */
@@ -312,6 +314,12 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		cmd = LINUX_REBOOT_CMD_HALT;
 
 	mutex_lock(&reboot_mutex);
+
+	if (cmd == LINUX_REBOOT_CMD_RESTART || cmd == LINUX_REBOOT_CMD_POWER_OFF ||
+		cmd == LINUX_REBOOT_CMD_RESTART2) {
+		pullDownReset = true;
+	}
+
 	switch (cmd) {
 	case LINUX_REBOOT_CMD_RESTART:
 		kernel_restart(NULL);

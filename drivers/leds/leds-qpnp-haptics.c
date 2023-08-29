@@ -1522,6 +1522,22 @@ static ssize_t qpnp_haptics_store_duration(struct device *dev,
 
 	if (val > chip->max_play_time_ms)
 		return -EINVAL;
+	
+	if (chip->vmax_override) {
+		old_vmax_mv = chip->vmax_mv;
+		if (val >= HAP_MIN_TIME_CALL)
+			chip->vmax_mv = chip->vmax_mv_call;
+		else if (val >= HAP_MIN_TIME_STRONG)
+			chip->vmax_mv = chip->vmax_mv_strong;
+		else
+			chip->vmax_mv = chip->vmax_mv_user;
+
+		rc = qpnp_haptics_vmax_config(chip, chip->vmax_mv, false);
+		if (rc < 0) {
+			chip->vmax_mv = old_vmax_mv;
+			return rc;
+		}
+	}	
 
 	if (chip->vmax_override) {
 		old_vmax_mv = chip->vmax_mv;
@@ -1574,10 +1590,10 @@ static ssize_t qpnp_haptics_store_activate(struct device *dev,
 
 	if (val != 0 && val != 1)
 		return count;
-
+	
 	if (chip->vmax_mv <= HAP_VMAX_MIN_MV && (val != 0))
 		return count;
-
+	
 	if (val) {
 		hrtimer_cancel(&chip->stop_timer);
 		if (is_sw_lra_auto_resonance_control(chip))
@@ -1820,7 +1836,7 @@ static ssize_t qpnp_haptics_store_vmax(struct device *dev,
 
 	if (chip->vmax_override)
 		return count;
-
+	
 	old_vmax_mv = chip->vmax_mv;
 	chip->vmax_mv = data;
 	rc = qpnp_haptics_vmax_config(chip, chip->vmax_mv, false);

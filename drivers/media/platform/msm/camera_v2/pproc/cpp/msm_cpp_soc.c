@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -71,18 +71,6 @@ int msm_cpp_get_clock_index(struct cpp_device *cpp_dev, const char *clk_name)
 	return -EINVAL;
 }
 
-int msm_cpp_get_regulator_index(struct cpp_device *cpp_dev,
-	const char *regulator_name)
-{
-	uint32_t i = 0;
-
-	for (i = 0; i < cpp_dev->num_reg; i++) {
-		if (!strcmp(regulator_name, cpp_dev->cpp_vdd[i].name))
-			return i;
-	}
-	return -EINVAL;
-}
-
 static int cpp_get_clk_freq_tbl(struct clk *clk, struct cpp_hw_info *hw_info,
 	uint32_t min_clk_rate)
 {
@@ -111,8 +99,10 @@ static int cpp_get_clk_freq_tbl(struct clk *clk, struct cpp_hw_info *hw_info,
 			break;
 		}
 	}
+
 	pr_debug("%s: idx %d", __func__, idx);
 	hw_info->freq_tbl_count = idx;
+
 	return 0;
 }
 
@@ -153,7 +143,7 @@ int msm_cpp_set_micro_clk(struct cpp_device *cpp_dev)
 
 int msm_update_freq_tbl(struct cpp_device *cpp_dev)
 {
-	int msm_cpp_core_clk_idx;
+	uint32_t msm_cpp_core_clk_idx;
 	int rc = 0;
 
 	msm_cpp_core_clk_idx = msm_cpp_get_clock_index(cpp_dev, "cpp_core_clk");

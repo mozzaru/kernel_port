@@ -264,24 +264,14 @@ static struct glink_core_version versions[] = {
 	{1, TRACER_PKT_FEATURE, negotiate_features_v1},
 };
 
-#define SMEM_IPC_LOG(einfo, str, id, param1, param2) do { \
-	if ((glink_xprt_debug_mask & QCOM_GLINK_DEBUG_ENABLE) \
-		&& (einfo->debug_mask & QCOM_GLINK_DEBUG_ENABLE)) \
-		ipc_log_string(einfo->log_ctx, \
-				"%s: Rx:%x:%x Tx:%x:%x Cmd:%x P1:%x P2:%x\n", \
-				str, einfo->rx_ch_desc->read_index, \
-				einfo->rx_ch_desc->write_index, \
-				einfo->tx_ch_desc->read_index, \
-				einfo->tx_ch_desc->write_index, \
-				id, param1, param2); \
-} while (0) \
+#define SMEM_IPC_LOG(einfo, str, id, param1, param2) ((void)0)
 
 enum {
 	QCOM_GLINK_DEBUG_ENABLE = 1U << 0,
 	QCOM_GLINK_DEBUG_DISABLE = 1U << 1,
 };
 
-static unsigned int glink_xprt_debug_mask = QCOM_GLINK_DEBUG_ENABLE;
+static unsigned int glink_xprt_debug_mask;
 module_param_named(debug_mask, glink_xprt_debug_mask,
 		   uint, 0664);
 

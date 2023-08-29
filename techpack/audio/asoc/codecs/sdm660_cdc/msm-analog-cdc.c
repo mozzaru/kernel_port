@@ -65,7 +65,7 @@
 #define SPK_PMU 3
 
 #ifdef CONFIG_MACH_XIAOMI_MARKW
-#define MICBIAS_DEFAULT_VAL 2700000
+#define MICBIAS_DEFAULT_VAL 2200000
 #endif
 #define MICBIAS_MIN_VAL 1600000
 #define MICBIAS_STEP_SIZE 50000
@@ -4738,7 +4738,7 @@ static int msm_anlg_cdc_probe(struct platform_device *pdev)
 	adsp_state = apr_get_subsys_state();
 	if (adsp_state == APR_SUBSYS_DOWN ||
 		!q6core_is_adsp_ready()) {
-		dev_err(&pdev->dev, "Adsp is not loaded yet %d\n",
+		dev_dbg(&pdev->dev, "Adsp is not loaded yet %d\n",
 			adsp_state);
 		return -EPROBE_DEFER;
 	}

@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,7 +16,6 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-fh.h>
 #include <media/v4l2-ctrls.h>
-#include <media/videobuf2-v4l2.h>
 #include <linux/msm-bus.h>
 #include <media/msm_fd.h>
 #include <linux/dma-buf.h>
@@ -84,7 +83,7 @@ struct msm_fd_setings {
  * @crop: V4l2 crop structure.
  * @bytesperline: Bytes per line of input image buffer.
  * @sizeimage: Size of input image buffer.
- * @pixeformat: Pix format of input image buffer.
+ * @pixelformat: Pixel format of input image buffer.
  */
 struct msm_fd_format {
 	struct msm_fd_size *size;

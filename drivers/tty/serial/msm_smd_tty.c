@@ -42,19 +42,9 @@
 #define MAX_RA_WAKE_LOCK_NAME_LEN 32
 #define SMD_TTY_LOG_PAGES 2
 
-#define SMD_TTY_INFO(buf...) \
-do { \
-	if (smd_tty_log_ctx) { \
-		ipc_log_string(smd_tty_log_ctx, buf); \
-	} \
-} while (0)
+#define SMD_TTY_INFO(buf...) ((void)0)
 
-#define SMD_TTY_ERR(buf...) \
-do { \
-	if (smd_tty_log_ctx) \
-		ipc_log_string(smd_tty_log_ctx, buf); \
-	pr_err(buf); \
-} while (0)
+#define SMD_TTY_ERR(buf...) ((void)0)
 
 static void *smd_tty_log_ctx;
 static bool smd_tty_in_suspend;
@@ -828,6 +818,7 @@ static struct notifier_block smd_tty_pm_nb = {
 	.priority = 0,
 };
 
+#ifdef CONFIG_IPC_LOGGING
 /**
  * smd_tty_log_init()- Init function for IPC logging
  *
@@ -841,6 +832,7 @@ static void smd_tty_log_init(void)
 	if (!smd_tty_log_ctx)
 		pr_err("%s: Unable to create IPC log", __func__);
 }
+#endif
 
 static struct tty_driver *smd_tty_driver;
 
@@ -1034,7 +1026,9 @@ static int __init smd_tty_init(void)
 {
 	int rc;
 
+	#ifdef CONFIG_IPC_LOGGING
 	smd_tty_log_init();
+	#endif
 	rc = platform_driver_register(&msm_smd_tty_driver);
 	if (rc) {
 		SMD_TTY_ERR("%s: msm_smd_tty_driver register failed %d\n",

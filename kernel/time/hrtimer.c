@@ -892,8 +892,7 @@ out:
 	* migrating pinned hrtimers as well.
 	*/
 	/* Pairs with the lockless read in hrtimer_is_queued() */
-	WRITE_ONCE(timer->state,
-		   newstate | (timer->state & HRTIMER_STATE_PINNED));
+	WRITE_ONCE(timer->state, newstate | (timer->state & HRTIMER_STATE_PINNED));
 }
 
 /*

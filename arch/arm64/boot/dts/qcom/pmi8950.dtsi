@@ -173,21 +173,26 @@
 			compatible = "qcom,qpnp-smbcharger";
 			#address-cells = <1>;
 			#size-cells = <1>;
+			#cooling-cells = <2>;
 
-			qcom,iterm-ma = <100>;
-			qcom,float-voltage-mv = <4200>;
-			qcom,resume-delta-mv = <200>;
+			qcom,iterm-ma = <200>;
+			qcom,float-voltage-mv = <4380>;
+			qcom,resume-delta-mv = <50>;
 			qcom,chg-inhibit-fg;
 			qcom,rparasitic-uohm = <100000>;
 			qcom,bms-psy-name = "bms";
-			qcom,thermal-mitigation = <1500 700 600 0>;
-			qcom,parallel-usb-min-current-ma = <1400>;
-			qcom,parallel-usb-9v-min-current-ma = <900>;
-			qcom,parallel-allowed-lowering-ma = <500>;
+			qcom,charge-unknown-battery;
+			qcom,thermal-mitigation = <1500 900 500 0>;
+			//qcom,parallel-usb-min-current-ma = <1400>;
+			//qcom,parallel-usb-9v-min-current-ma = <900>;
+			//qcom,parallel-allowed-lowering-ma = <500>;
 			qcom,pmic-revid = <&pmi8950_revid>;
 			qcom,force-aicl-rerun;
 			qcom,aicl-rerun-period-s = <180>;
-			qcom,autoadjust-vfloat;
+			//qcom,autoadjust-vfloat;
+			qcom,override-usb-current;
+			qcom,fastchg-current-comp = <1200>;
+			qcom,float-voltage-comp = <15>;
 			dpdm-supply = <&qusb_phy>;
 
 			qcom,chgr@1000 {
@@ -289,17 +294,19 @@
 			compatible = "qcom,qpnp-fg";
 			#address-cells = <1>;
 			#size-cells = <1>;
-			qcom,resume-soc = <95>;
+			qcom,resume-soc-raw = <254>;
 			status = "okay";
 			qcom,bcl-lm-threshold-ma = <127>;
 			qcom,bcl-mh-threshold-ma = <405>;
-			qcom,fg-iterm-ma = <150>;
-			qcom,fg-chg-iterm-ma = <100>;
+			qcom,fg-iterm-ma = <300>;
+			qcom,fg-chg-iterm-ma = <200>;
 			qcom,pmic-revid = <&pmi8950_revid>;
-			qcom,fg-cutoff-voltage-mv = <3500>;
+			qcom,fg-cutoff-voltage-mv = <3400>;
 			qcom,cycle-counter-en;
 			qcom,capacity-learning-on;
-
+			qcom,hold-soc-while-full;
+			qcom,fg-cc-cv-threshold-mv =<4370>;
+			qcom,vbat-estimate-diff-mv = <200>;
 			qcom,fg-soc@4000 {
 			status = "okay";
 				reg = <0x4000 0x100>;
@@ -356,7 +363,7 @@
 			};
 		};
 
-		bcl@4200 {
+		bcl_sensor: bcl@4200 {
 			compatible = "qcom,msm-bcl";
 			reg = <0x4200 0xFF 0x88E 0x2>;
 			reg-names = "fg_user_adc", "pon_spare";
@@ -375,6 +382,7 @@
 			qcom,ibat-offset-denominator = <1>;
 			qcom,ibat-polling-delay-ms = <100>;
 			qcom,inhibit-derating-ua = <550000>;
+			#thermal-sensor-cells = <1>;
 		};
 
 		qcom,leds@a100 {
@@ -658,6 +666,53 @@
 			active-config0 {
 				temperature = <65000>;
 				hysteresis = <1000>;
+				type = "passive";
+			};
+		};
+	};
+
+	ibat-high {
+		polling-delay-passive = <100>;
+		polling-delay = <0>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&bcl_sensor 0>;
+
+		trips {
+			ibat-high {
+				temperature = <4200>;
+				hysteresis = <200>;
+				type = "passive";
+			};
+		};
+	};
+
+	vbat_low {
+		polling-delay-passive = <100>;
+		polling-delay = <0>;
+		thermal-governor = "low_limits_cap";
+		thermal-sensors = <&bcl_sensor 1>;
+		tracks-low;
+
+		trips {
+			vbat-low {
+				temperature = <3500>;
+				hysteresis = <100>;
+				type = "passive";
+			};
+		};
+	};
+
+	soc {
+		polling-delay-passive = <100>;
+		polling-delay = <0>;
+		thermal-governor = "low_limits_cap";
+		thermal-sensors = <&bcl_sensor 2>;
+		tracks-low;
+
+		trips {
+			low_soc: low-soc {
+				temperature = <10>;
+				hysteresis = <0>;
 				type = "passive";
 			};
 		};

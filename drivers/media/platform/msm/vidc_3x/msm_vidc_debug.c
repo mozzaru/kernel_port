@@ -18,9 +18,9 @@
 #include "vidc_hfi_api.h"
 
 int msm_vidc_debug = 0;
-int msm_vidc_debug_out = 0;
-int msm_vidc_fw_debug = 0;
-int msm_vidc_fw_debug_mode = 0;
+int msm_vidc_debug_out = VIDC_OUT_PRINTK;
+int msm_vidc_fw_debug = 0x18;
+int msm_vidc_fw_debug_mode = 1;
 int msm_vidc_fw_low_power_mode = 1;
 int msm_vidc_hw_rsp_timeout = 1000;
 bool msm_vidc_fw_coverage = true;
@@ -238,15 +238,15 @@ struct dentry *msm_vidc_debugfs_init_core(struct msm_vidc_core *core,
 	snprintf(debugfs_name, MAX_DEBUGFS_NAME, "core%d", core->id);
 	dir = debugfs_create_dir(debugfs_name, parent);
 	if (IS_ERR_OR_NULL(dir)) {
-		dprintk(VIDC_DBG, "Failed to create debugfs for msm_vidc\n");
+		dprintk(VIDC_ERR, "Failed to create debugfs for msm_vidc\n");
 		goto failed_create_file;
 	}
 
-	if (IS_ERR_OR_NULL(debugfs_create_file("info", 0444, dir, core, &core_info_fops))) {
+	if (IS_ERR_OR_NULL(("info", 0444, dir, core, &core_info_fops))) {
 		dprintk(VIDC_ERR, "debugfs_create_file: fail\n");
 		goto failed_create_file;
 	}
-	if (IS_ERR_OR_NULL(debugfs_create_file("trigger_ssr", 0200,
+	if (IS_ERR_OR_NULL(("trigger_ssr", 0200,
 			dir, core, &ssr_fops))) {
 		dprintk(VIDC_ERR, "debugfs_create_file: fail\n");
 		goto failed_create_file;
@@ -459,7 +459,7 @@ struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst,
 
 	dir = debugfs_create_dir(debugfs_name, parent);
 	if (IS_ERR_OR_NULL(dir)) {
-		dprintk(VIDC_DBG, "Failed to create debugfs for msm_vidc\n");
+		dprintk(VIDC_ERR, "Failed to create debugfs for msm_vidc\n");
 		goto failed_create_dir;
 	}
 

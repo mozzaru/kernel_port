@@ -699,15 +699,6 @@ config ICNSS
           control messages to FW over QMI channel. It is also responsible for
           handling WLAN PD restart notifications.
 
-config ICNSS_DEBUG
-        bool "ICNSS debug support"
-        depends on ICNSS
-        ---help---
-          Say 'Y' here to enable ICNSS driver debug support. Debug support
-          primarily consists of logs consisting of information related to
-          hardware register access and enabling BUG_ON for certain cases to aid
-          the debugging.
-
 config QCOM_COMMAND_DB
 	bool "Command DB"
 	help
@@ -889,6 +880,11 @@ config QSEE_IPC_IRQ_BRIDGE
 	  interrupt from a remote subsystem directed towards Qualcomm
 	  Technologies, Inc. Secure Execution Environment(QSEE).
 
+config SERIAL_NUM
+	bool "Enable Serial Number Proc Interface"
+	help
+	Provide a interface for reading CPU serial number
+
 config MSM_JTAGV8
 	bool "Debug and ETM trace support across power collapse for ARMv8"
 	default y if CORESIGHT_SOURCE_ETM4X
@@ -973,7 +969,10 @@ config BIG_CLUSTER_MIN_FREQ_ADJUST
 	  to the user specified value when the cluster is not power collapsed. When
 	  the cluster is power collpsed it resets the value to physical limits.
 
-config SERIAL_NUM
-	bool "Enable Serial Number Proc Interface"
+config STATE_NOTIFIER
+	bool "State Notifier"
+	default n
 	help
-	  Provide a interface for reading CPU serial number
+	  A unified display state notifier for kernel drivers for easy porting
+	  between different devices.
+

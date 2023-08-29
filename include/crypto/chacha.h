@@ -52,7 +52,7 @@ int crypto_xchacha_crypt(struct blkcipher_desc *desc, struct scatterlist *dst,
 			 struct scatterlist *src, unsigned int nbytes);
 
 enum chacha_constants { /* expand 32-byte k */
-	CHACHA_CONSTANT_EXPA = 0x61707865U,
+        CHACHA_CONSTANT_EXPA = 0x61707865U,
 	CHACHA_CONSTANT_ND_3 = 0x3320646eU,
 	CHACHA_CONSTANT_2_BY = 0x79622d32U,
 	CHACHA_CONSTANT_TE_K = 0x6b206574U

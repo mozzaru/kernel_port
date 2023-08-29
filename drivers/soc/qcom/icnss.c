@@ -79,67 +79,45 @@ module_param(qmi_timeout, ulong, 0600);
 
 #define PROBE_TIMEOUT			15000
 
-#define icnss_ipc_log_string(_x...) do {				\
-	if (icnss_ipc_log_context)					\
-		ipc_log_string(icnss_ipc_log_context, _x);		\
-	} while (0)
+#define icnss_ipc_log_string(_x...) ((void)0)
 
-#define icnss_ipc_log_long_string(_x...) do {				\
-	if (icnss_ipc_log_long_context)					\
-		ipc_log_string(icnss_ipc_log_long_context, _x);		\
-	} while (0)
+#define icnss_ipc_log_long_string(_x...) ((void)0)
 
 #define icnss_pr_err(_fmt, ...) do {					\
 	printk("%s" pr_fmt(_fmt), KERN_ERR, ##__VA_ARGS__);		\
-	icnss_ipc_log_string("%s" pr_fmt(_fmt), "",			\
-			     ##__VA_ARGS__);				\
 	} while (0)
 
 #define icnss_pr_warn(_fmt, ...) do {					\
 	printk("%s" pr_fmt(_fmt), KERN_WARNING, ##__VA_ARGS__);		\
-	icnss_ipc_log_string("%s" pr_fmt(_fmt), "",			\
-			     ##__VA_ARGS__);				\
 	} while (0)
 
 #define icnss_pr_info(_fmt, ...) do {					\
 	printk("%s" pr_fmt(_fmt), KERN_INFO, ##__VA_ARGS__);		\
-	icnss_ipc_log_string("%s" pr_fmt(_fmt), "",			\
-			     ##__VA_ARGS__);				\
 	} while (0)
 
 #if defined(CONFIG_DYNAMIC_DEBUG)
 #define icnss_pr_dbg(_fmt, ...) do {					\
 	pr_debug(_fmt, ##__VA_ARGS__);					\
-	icnss_ipc_log_string(pr_fmt(_fmt), ##__VA_ARGS__);		\
 	} while (0)
 
 #define icnss_pr_vdbg(_fmt, ...) do {					\
 	pr_debug(_fmt, ##__VA_ARGS__);					\
-	icnss_ipc_log_long_string(pr_fmt(_fmt), ##__VA_ARGS__);		\
 	} while (0)
 #elif defined(DEBUG)
 #define icnss_pr_dbg(_fmt, ...) do {					\
 	printk("%s" pr_fmt(_fmt), KERN_DEBUG, ##__VA_ARGS__);		\
-	icnss_ipc_log_string("%s" pr_fmt(_fmt), "",			\
-			     ##__VA_ARGS__);				\
 	} while (0)
 
 #define icnss_pr_vdbg(_fmt, ...) do {					\
 	printk("%s" pr_fmt(_fmt), KERN_DEBUG, ##__VA_ARGS__);		\
-	icnss_ipc_log_long_string("%s" pr_fmt(_fmt), "",		\
-				  ##__VA_ARGS__);			\
 	} while (0)
 #else
 #define icnss_pr_dbg(_fmt, ...) do {					\
 	no_printk("%s" pr_fmt(_fmt), KERN_DEBUG, ##__VA_ARGS__);	\
-	icnss_ipc_log_string("%s" pr_fmt(_fmt), "",			\
-		     ##__VA_ARGS__);					\
 	} while (0)
 
 #define icnss_pr_vdbg(_fmt, ...) do {					\
 	no_printk("%s" pr_fmt(_fmt), KERN_DEBUG, ##__VA_ARGS__);	\
-	icnss_ipc_log_long_string("%s" pr_fmt(_fmt), "",		\
-				  ##__VA_ARGS__);			\
 	} while (0)
 #endif
 
@@ -3639,7 +3617,7 @@ int icnss_wlan_enable(struct device *dev, struct icnss_wlan_enable_cfg *config,
 	if (ret)
 		goto out;
 skip:
-	ret = wlfw_wlan_mode_send_sync_msg(mode);
+	ret = wlfw_wlan_mode_send_sync_msg((enum wlfw_driver_mode_enum_v01)mode);
 out:
 	if (test_bit(SKIP_QMI, &quirks))
 		ret = 0;
@@ -4740,7 +4718,7 @@ static const struct file_operations icnss_regread_fops = {
 	.llseek         = seq_lseek,
 };
 
-#ifdef CONFIG_ICNSS_DEBUG
+#ifdef CONFIG_DEBUG_FS
 static int icnss_debugfs_create(struct icnss_priv *priv)
 {
 	int ret = 0;
@@ -4768,26 +4746,6 @@ static int icnss_debugfs_create(struct icnss_priv *priv)
 
 out:
 	return ret;
-}
-#else
-static int icnss_debugfs_create(struct icnss_priv *priv)
-{
-	int ret = 0;
-	struct dentry *root_dentry;
-
-	root_dentry = debugfs_create_dir("icnss", NULL);
-
-	if (IS_ERR(root_dentry)) {
-		ret = PTR_ERR(root_dentry);
-		icnss_pr_err("Unable to create debugfs %d\n", ret);
-		return ret;
-	}
-
-	priv->root_dentry = root_dentry;
-
-	debugfs_create_file("stats", 0600, root_dentry, priv,
-			    &icnss_stats_fops);
-	return 0;
 }
 #endif
 
@@ -5026,7 +4984,9 @@ static int icnss_probe(struct platform_device *pdev)
 
 	icnss_enable_recovery(priv);
 
+#ifdef CONFIG_DEBUG_FS
 	icnss_debugfs_create(priv);
+#endif
 
 	ret = device_init_wakeup(&priv->pdev->dev, true);
 	if (ret)
@@ -5230,6 +5190,7 @@ static struct platform_driver icnss_driver = {
 
 static int __init icnss_initialize(void)
 {
+#ifdef CONFIG_IPC_LOGGING
 	icnss_ipc_log_context = ipc_log_context_create(NUM_LOG_PAGES,
 						       "icnss", 0);
 	if (!icnss_ipc_log_context)
@@ -5239,6 +5200,7 @@ static int __init icnss_initialize(void)
 						       "icnss_long", 0);
 	if (!icnss_ipc_log_long_context)
 		icnss_pr_err("Unable to create log long context\n");
+#endif
 
 	return platform_driver_register(&icnss_driver);
 }

@@ -456,10 +456,7 @@ static struct {
 static void *wcnss_ipc_log;
 
 #define IPC_NUM_LOG_PAGES	12
-#define wcnss_ipc_log_string(_x...) do {		\
-	if (wcnss_ipc_log)				\
-		ipc_log_string(wcnss_ipc_log, _x);	\
-	} while (0)
+#define wcnss_ipc_log_string(_x...) ((void)0)
 
 void wcnss_log(enum wcnss_log_type type, const char *_fmt, ...)
 {
@@ -1928,7 +1925,7 @@ static int wcnss_smd_tx(void *data, int len)
 
 	ret = smd_write_avail(penv->smd_ch);
 	if (ret < len) {
-		wcnss_log(ERR, "no space available for smd frame\n");
+		//wcnss_log(ERR, "no space available for smd frame\n");
 		return -ENOSPC;
 	}
 	ret = smd_write(penv->smd_ch, data, len);

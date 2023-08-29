@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -59,7 +59,7 @@ enum msm_jpegdma_plane_type {
  * struct msm_jpegdma_format - Dma format.
  * @name: Format name.
  * @fourcc: v4l2 fourcc code.
- * @depth: Number of bits per pix.
+ * @depth: Number of bits per pixel.
  * @num_planes: number of planes.
  * @colplane_h: Color plane horizontal subsample.
  * @colplane_v: Color plane vertical subsample.

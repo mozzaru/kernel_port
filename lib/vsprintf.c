@@ -1549,7 +1549,7 @@ static void enable_ptr_key_workfn(struct work_struct *work)
 static DECLARE_WORK(enable_ptr_key_work, enable_ptr_key_workfn);
 
 static int fill_random_ptr_key(struct notifier_block *nb,
-			       unsigned long action, void *data)
+                               unsigned long action, void *data)
 {
 	/* This may be in an interrupt handler. */
 	queue_work(system_unbound_wq, &enable_ptr_key_work);

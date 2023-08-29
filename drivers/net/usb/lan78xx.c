@@ -867,10 +867,13 @@ static int lan78xx_read_otp(struct lan78xx_net *dev, u32 offset,
 	ret = lan78xx_read_raw_otp(dev, 0, 1, &sig);
 
 	if (ret == 0) {
-		if (sig == OTP_INDICATOR_2)
-			offset += 0x100;
-		else if (sig != OTP_INDICATOR_1)
-			ret = -EINVAL;
+		if (sig != OTP_INDICATOR_1) {
+			if (sig == OTP_INDICATOR_2)
+				offset += 0x100;
+			else
+				ret = -EINVAL;
+		}
+
 		if (!ret)
 			ret = lan78xx_read_raw_otp(dev, offset, length, data);
 	}
@@ -1183,7 +1186,7 @@ static int lan78xx_link_reset(struct lan78xx_net *dev)
 static void lan78xx_defer_kevent(struct lan78xx_net *dev, int work)
 {
 	set_bit(work, &dev->flags);
-	if (!schedule_delayed_work(&dev->wq, 0))
+	if (!queue_delayed_work(system_power_efficient_wq, &dev->wq, 0))
 		netdev_err(dev->net, "kevent %d may have been dropped\n", work);
 }
 

@@ -40,19 +40,8 @@
 #define MAX_WQ_NAME_LEN 20
 #define QMI_REQ_RESP_LOG_PAGES 3
 #define QMI_IND_LOG_PAGES 2
-#define QMI_REQ_RESP_LOG(buf...) \
-do { \
-	if (qmi_req_resp_log_ctx) { \
-		ipc_log_string(qmi_req_resp_log_ctx, buf); \
-	} \
-} while (0) \
-
-#define QMI_IND_LOG(buf...) \
-do { \
-	if (qmi_ind_log_ctx) { \
-		ipc_log_string(qmi_ind_log_ctx, buf); \
-	} \
-} while (0) \
+#define QMI_REQ_RESP_LOG(buf...) ((void)0)
+#define QMI_IND_LOG(buf...) ((void)0)
 
 static LIST_HEAD(svc_event_nb_list);
 static DEFINE_MUTEX(svc_event_nb_list_lock);
@@ -1976,7 +1965,7 @@ int qmi_svc_event_notifier_register(uint32_t service_id,
 						GFP_KERNEL);
 			if (!svc_info_arr) {
 				ret = -ENOMEM;
-				goto qmi_svc_event_notifier_register_err;
+				goto out;
 			}
 			num_servers = msm_ipc_router_lookup_server_name(
 								&svc_name,
@@ -1996,7 +1985,7 @@ int qmi_svc_event_notifier_register(uint32_t service_id,
 		}
 	}
 
-qmi_svc_event_notifier_register_err:
+out:
 	mutex_unlock(&temp->svc_addr_list_lock);
 
 	return ret;
@@ -2228,7 +2217,9 @@ EXPORT_SYMBOL(qmi_svc_unregister);
 
 static int __init qmi_interface_init(void)
 {
+	#ifdef IPC_LOGGING
 	qmi_log_init();
+	#endif
 	return 0;
 }
 module_init(qmi_interface_init);

@@ -323,27 +323,10 @@ static void *bam_ipc_log_txt;
  * D: 1 = Disconnect ACK active
  */
 
-#define BAM_DMUX_LOG(fmt, args...) \
-do { \
-	if (bam_ipc_log_txt) { \
-		ipc_log_string(bam_ipc_log_txt, \
-		"<DMUX> %c%c%c%c %c%c%c%c%d " fmt, \
-		a2_pc_disabled ? 'D' : 'd', \
-		in_global_reset ? 'R' : 'r', \
-		bam_dmux_power_state ? 'P' : 'p', \
-		bam_connection_is_active ? 'A' : 'a', \
-		bam_dmux_uplink_vote ? 'V' : 'v', \
-		bam_is_connected ?  'U' : 'u', \
-		wait_for_ack ? 'W' : 'w', \
-		ul_wakeup_ack_completion.done ? 'A' : 'a', \
-		atomic_read(&ul_ondemand_vote), \
-		args); \
-	} \
-} while (0)
+#define BAM_DMUX_LOG(fmt, args...) ((void)0)
 
 #define DMUX_LOG_KERR(fmt, args...) \
 do { \
-	BAM_DMUX_LOG(fmt, args); \
 	pr_err(fmt, args); \
 } while (0)
 
@@ -1822,7 +1805,7 @@ static void ul_timeout(struct work_struct *work)
 		return;
 	ret = write_trylock_irqsave(&ul_wakeup_lock, flags);
 	if (!ret) { /* failed to grab lock, reschedule and bail */
-		schedule_delayed_work(&ul_timeout_work,
+		queue_delayed_work(system_power_efficient_wq, &ul_timeout_work,
 				msecs_to_jiffies(ul_timeout_delay));
 		return;
 	}
@@ -1846,7 +1829,7 @@ static void ul_timeout(struct work_struct *work)
 			BAM_DMUX_LOG("%s: pkt written %d\n",
 				__func__, ul_packet_written);
 			ul_packet_written = 0;
-			schedule_delayed_work(&ul_timeout_work,
+			queue_delayed_work(system_power_efficient_wq, &ul_timeout_work,
 					msecs_to_jiffies(ul_timeout_delay));
 		} else {
 			ul_powerdown();
@@ -1933,7 +1916,7 @@ static void ul_wakeup(void)
 		}
 		if (likely(do_vote_dfab))
 			vote_dfab();
-		schedule_delayed_work(&ul_timeout_work,
+		queue_delayed_work(system_power_efficient_wq, &ul_timeout_work,
 				msecs_to_jiffies(ul_timeout_delay));
 		bam_is_connected = 1;
 		mutex_unlock(&wakeup_lock);
@@ -1981,7 +1964,7 @@ static void ul_wakeup(void)
 
 	bam_is_connected = 1;
 	BAM_DMUX_LOG("%s complete\n", __func__);
-	schedule_delayed_work(&ul_timeout_work,
+	queue_delayed_work(system_power_efficient_wq, &ul_timeout_work,
 				msecs_to_jiffies(ul_timeout_delay));
 	mutex_unlock(&wakeup_lock);
 }
@@ -2849,12 +2832,12 @@ static int __init bam_dmux_init(void)
 		debug_create("stats", 0444, dent, debug_stats);
 	}
 #endif
-
+#ifdef CONFIG_IPC_LOGGING
 	bam_ipc_log_txt = ipc_log_context_create(BAM_IPC_LOG_PAGES, "bam_dmux",
 			0);
 	if (!bam_ipc_log_txt)
 		pr_err("%s : unable to create IPC Logging Context", __func__);
-
+#endif
 	rx_timer_interval = DEFAULT_POLLING_MIN_SLEEP;
 
 	return platform_driver_register(&bam_dmux_driver);
