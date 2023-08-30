@@ -17,6 +17,7 @@
 #include <linux/mutex.h>
 #include <linux/kmod.h>
 #include <linux/sched.h>
+#include <linux/freezer.h>
 #include "rc-core-priv.h"
 
 /* Used to keep track of IR raw clients, protected by ir_raw_handler_lock */
@@ -34,26 +35,32 @@ static int ir_raw_event_thread(void *data)
 	struct ir_raw_handler *handler;
 	struct ir_raw_event_ctrl *raw = (struct ir_raw_event_ctrl *)data;
 
-	while (1) {
-		mutex_lock(&ir_raw_handler_lock);
-		while (kfifo_out(&raw->kfifo, &ev, 1)) {
-			list_for_each_entry(handler, &ir_raw_handler_list, list)
-				if (raw->dev->enabled_protocols &
-				    handler->protocols || !handler->protocols)
-					handler->decode(raw->dev, ev);
-			raw->prev_ev = ev;
+	while (!kthread_should_stop()) {
+
+		spin_lock_irq(&raw->lock);
+
+		if (!kfifo_len(&raw->kfifo)) {
+			set_current_state(TASK_INTERRUPTIBLE);
+
+			if (kthread_should_stop())
+				set_current_state(TASK_RUNNING);
+
+			spin_unlock_irq(&raw->lock);
+			schedule();
+			continue;
 		}
+
+		if(!kfifo_out(&raw->kfifo, &ev, 1))
+			dev_err(&raw->dev->dev, "IR event FIFO is empty!\n");
+		spin_unlock_irq(&raw->lock);
+
+		mutex_lock(&ir_raw_handler_lock);
+		list_for_each_entry(handler, &ir_raw_handler_list, list)
+			if (raw->dev->enabled_protocols & handler->protocols ||
+			    !handler->protocols)
+				handler->decode(raw->dev, ev);
+		raw->prev_ev = ev;
 		mutex_unlock(&ir_raw_handler_lock);
-
-		set_current_state(TASK_INTERRUPTIBLE);
-
-		if (kthread_should_stop()) {
-			__set_current_state(TASK_RUNNING);
-			break;
-		} else if (!kfifo_is_empty(&raw->kfifo))
-			set_current_state(TASK_RUNNING);
-
-		schedule();
 	}
 
 	return 0;
@@ -228,10 +235,14 @@ EXPORT_SYMBOL_GPL(ir_raw_event_set_idle);
  */
 void ir_raw_event_handle(struct rc_dev *dev)
 {
+	unsigned long flags;
+
 	if (!dev->raw)
 		return;
 
+	spin_lock_irqsave(&dev->raw->lock, flags);
 	wake_up_process(dev->raw->thread);
+	spin_unlock_irqrestore(&dev->raw->lock, flags);
 }
 EXPORT_SYMBOL_GPL(ir_raw_event_handle);
 
@@ -279,6 +290,7 @@ int ir_raw_event_register(struct rc_dev *dev)
 	dev->change_protocol = change_protocol;
 	INIT_KFIFO(dev->raw->kfifo);
 
+	spin_lock_init(&dev->raw->lock);
 	dev->raw->thread = kthread_run(ir_raw_event_thread, dev->raw,
 				       "rc%u", dev->minor);
 
