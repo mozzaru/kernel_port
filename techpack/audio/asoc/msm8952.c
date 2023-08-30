@@ -357,7 +357,7 @@ int is_ext_spk_gpio_support(struct platform_device *pdev,
 			return -EINVAL;
 		}
 	}
-#if defined(CONFIG_MACH_XIAOMI_C6) || defined(CONFIG_MACH_XIAOMI_MARKW)
+#ifdef CONFIG_MACH_XIAOMI_C6
 	gpio_direction_output(pdata->spk_ext_pa_gpio, 0);
 #endif
 	return 0;
@@ -367,7 +367,7 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 {
 	struct snd_soc_card *card = codec->component.card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
-#if defined(CONFIG_MACH_XIAOMI_C6) || defined(CONFIG_MACH_XIAOMI_MARKW)
+#ifdef CONFIG_MACH_XIAOMI_C6
 	int pa_mode = EXT_PA_MODE;
 #else
 	int ret;
@@ -383,7 +383,7 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 		enable ? "Enable" : "Disable");
 
 	if (enable) {
-#if defined(CONFIG_MACH_XIAOMI_C6) || defined(CONFIG_MACH_XIAOMI_MARKW)
+#ifdef CONFIG_MACH_XIAOMI_C6
 		while (pa_mode > 0) {
 			gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, 0);
 			udelay(2);
@@ -403,7 +403,7 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 #endif
 	} else {
 		gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
-#if defined(CONFIG_MACH_XIAOMI_C6) || defined(CONFIG_MACH_XIAOMI_MARKW)
+#ifndef CONFIG_MACH_XIAOMI_C6
 		ret = msm_cdc_pinctrl_select_sleep_state(
 				pdata->spk_ext_pa_gpio_p);
 		if (ret) {
