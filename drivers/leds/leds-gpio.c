@@ -122,13 +122,13 @@ static void gpio_led_set(struct led_classdev *led_cdev,
 			led_dat->platform_gpio_blink_set(led_dat->gpio, level,
 							 NULL, NULL);
 			led_dat->blinking = 0;
-		} else
+	} else
 			ret = gpio_direction_output(led_dat->gpio, level);
-			if (ret) {
+	if (ret) {
 				printk("infrared unable to set dir for gpio [%d]\n", led_dat->gpio);
 			}
 
-	}
+	       }
 }
 
 static int gpio_blink_set(struct led_classdev *led_cdev,
