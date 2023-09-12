@@ -1,5 +1,6 @@
 qcom,2369665_markw_4000mah_averaged_masterslave_apr1st2016 {
 	qcom,max-voltage-uv = <4400000>;
+	qcom,fastchg-current-ma = <3500>;
 	qcom,nom-batt-capacity-mah = <4000>;
 	qcom,batt-id-kohm = <100>;
 	qcom,battery-beta = <3435>;
