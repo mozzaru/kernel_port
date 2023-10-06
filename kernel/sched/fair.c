@@ -579,6 +579,33 @@ static void update_min_vruntime(struct cfs_rq *cfs_rq)
 #endif
 }
 
+#ifdef CONFIG_PERF_HUMANTASK
+static inline bool jump_queue(struct task_struct *tsk, struct rb_node *root)
+{
+	bool jump = false;
+
+	if (tsk && tsk->human_task && root) {
+		if (tsk->human_task > MAX_LEVER) {
+			jump = true;
+			goto out;
+		}
+
+		if (tsk->human_task < MAX_LEVER)
+			jump = true;
+
+		tsk->human_task = jump ? ++tsk->human_task : 1;
+	}
+
+out:
+	if (jump)
+		trace_sched_debug_einfo(tsk, "jumper", "boostx",
+					tsk->human_task, sched_boost(),
+					1, 1, 0);
+
+	return jump;
+}
+#endif
+
 /*
  * Enqueue an entity into the rb-tree:
  */
@@ -588,6 +615,19 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	struct rb_node *parent = NULL;
 	struct sched_entity *entry;
 	bool leftmost = true;
+
+#ifdef CONFIG_PERF_HUMANTASK
+	bool speed = false;
+	struct task_struct *tsk = NULL;
+
+	if (entity_is_task(se)) {
+		tsk = task_of(se);
+		speed = jump_queue(tsk, *link);
+	}
+
+	if (speed)
+		se->vruntime = tsk->human_task * 1000000;
+#endif
 
 	/*
 	 * Find the right place in the rbtree:
@@ -606,6 +646,11 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 			leftmost = false;
 		}
 	}
+
+#ifdef CONFIG_PERF_HUMANTASK
+	if (speed)
+		se->vruntime = entry->vruntime - 1;
+#endif
 
 	rb_link_node(&se->run_node, parent, link);
 	rb_insert_color_cached(&se->run_node,
@@ -2375,7 +2420,8 @@ void task_numa_fault(int last_cpupid, int mem_node, int pages, int flags)
 	struct numa_group *ng;
 	int priv;
 
-	if (!static_branch_likely(&sched_numa_balancing))
+	if (!IS_ENABLED(CONFIG_NUMA_BALANCING) ||
+	    !static_branch_likely(&sched_numa_balancing))
 		return;
 
 	/* for example, ksmd faulting in a user's mm */
@@ -6315,12 +6361,20 @@ boosted_cpu_util(int cpu, struct sched_walt_cpu_load *walt_load)
 static inline unsigned long
 boosted_task_util(struct task_struct *p)
 {
+#ifdef CONFIG_UCLAMP_TASK_GROUP
+	unsigned long util = task_util(p);
+	unsigned long util_min = uclamp_eff_value(p, UCLAMP_MIN);
+	unsigned long util_max = uclamp_eff_value(p, UCLAMP_MAX);
+
+	return clamp(util, util_min, util_max);
+#else
 	unsigned long util = task_util(p);
 	long margin = schedtune_task_margin(p);
 
 	trace_sched_boost_task(p, util, margin);
 
 	return util + margin;
+#endif
 }
 
 static unsigned long capacity_spare_wake(int cpu, struct task_struct *p)
@@ -7037,6 +7091,15 @@ retry:
 			if (walt_cpu_high_irqload(i) || is_reserved(i))
 				continue;
 
+#ifdef CONFIG_PERF_HUMANTASK
+			if (p->human_task > MAX_LEVER)
+				break;
+#endif
+
+			/* Skip CPUs which do not fit task requirements */
+			if (capacity_of(i) < boosted_task_util(p))
+				continue;
+
 			/*
 			 * p's blocked utilization is still accounted for on prev_cpu
 			 * so prev_cpu will receive a negative bias due to the double
@@ -7527,6 +7590,9 @@ static int select_energy_cpu_brute(struct task_struct *p, int prev_cpu,
 	boosted = task_is_boosted(p);
 #ifdef CONFIG_CGROUP_SCHEDTUNE
 	prefer_idle = schedtune_prefer_idle(p) > 0;
+#elif  CONFIG_UCLAMP_TASK
+	boosted = uclamp_boosted(p);
+	prefer_idle = uclamp_latency_sensitive(p);
 #else
 	prefer_idle = 0;
 #endif
@@ -7541,6 +7607,11 @@ static int select_energy_cpu_brute(struct task_struct *p, int prev_cpu,
 
 	fbt_env.placement_boost = task_boost_policy(p);
 	fbt_env.avoid_prev_cpu = false;
+
+#ifdef CONFIG_PERF_HUMANTASK
+	if (p->human_task > MAX_LEVER)
+		goto done;
+#endif
 
 	if (bias_to_prev_cpu(p, rtg_target)) {
 		target_cpu = prev_cpu;
@@ -8495,6 +8566,11 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 		return 0;
 #endif
 
+	/* Dont allow boosted tasks to be pulled to small cores */
+	if (env->flags & LBF_IGNORE_BIG_TASKS &&
+		(schedtune_task_boost(p) > 0))
+		return 0;
+
 	if (task_running(env->src_rq, p)) {
 		schedstat_inc(p->se.statistics.nr_failed_migrations_running);
 		return 0;
@@ -8619,6 +8695,11 @@ redo:
 			env->flags |= LBF_NEED_BREAK;
 			break;
 		}
+
+#ifdef CONFIG_PERF_HUMANTASK
+		if (p->human_task > MAX_LEVER)
+			goto next;
+#endif
 
 		if (!can_migrate_task(p, env))
 			goto next;
@@ -8989,7 +9070,7 @@ static void update_cpu_capacity(struct sched_domain *sd, int cpu)
 	    (max_capacity < capacity)) {
 		mcc->val = capacity;
 		mcc->cpu = cpu;
-#ifdef CONFIG_SCHED_DEBUG
+#if 0
 		raw_spin_unlock_irqrestore(&mcc->lock, flags);
 #ifdef CONFIG_SUSPEND_LOG_DEBUG
 		printk_deferred(KERN_INFO "CPU%d: update max cpu_capacity %lu\n",
@@ -9731,6 +9812,11 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
 		}
 
 		env->imbalance = 0;
+		if (busiest->group_type == group_overloaded &&
+				local->group_type <= group_misfit_task) {
+			env->imbalance = busiest->load_per_task;
+			return;
+		}
 		return fix_small_imbalance(env, sds);
 	}
 
@@ -10362,9 +10448,16 @@ no_move:
 			raw_spin_unlock_irqrestore(&busiest->lock, flags);
 
 			if (active_balance) {
-				stop_one_cpu_nowait(cpu_of(busiest),
+				int ret;
+
+				ret = stop_one_cpu_nowait(cpu_of(busiest),
 					active_load_balance_cpu_stop, busiest,
 					&busiest->active_balance_work);
+				if (!ret) {
+					clear_reserved(this_cpu);
+					busiest->active_balance = 0;
+					active_balance = 0;
+				}
 				*continue_balancing = 0;
 			}
 
@@ -10509,7 +10602,9 @@ static int idle_balance(struct rq *this_rq)
 	 * Force higher capacity CPUs doing load balance, when the lower
 	 * capacity CPUs has some misfit tasks.
 	 */
-	if (!is_min_capacity_cpu(this_cpu) && min_cap_cluster_has_misfit_task())
+	if (!is_min_capacity_cpu(this_cpu) &&
+		(atomic_read(&this_rq->nr_iowait) == 0) &&
+		min_cap_cluster_has_misfit_task())
 		force_lb = true;
 
 	/*
@@ -10847,11 +10942,19 @@ unlock:
  */
 void nohz_balance_enter_idle(int cpu)
 {
-	/*
-	 * If this cpu is going down, then nothing needs to be done.
-	 */
-	if (!cpu_active(cpu))
+	if (!cpu_active(cpu)) {	
+		/*
+		 * A CPU can be paused while it is idle with it's tick
+		 * stopped. nohz_balance_exit_idle() should be called
+		 * from the local CPU, so it can't be called during
+		 * pause. This results in paused CPU participating in
+		 * the nohz idle balance, which should be avoided.
+		 * When the paused CPU exits idle and enters again,
+		 * exempt the paused CPU from nohz_balance_exit_idle.
+		 */
+		nohz_balance_exit_idle(cpu);
 		return;
+	}
 
 	if (test_bit(NOHZ_TICK_STOPPED, nohz_flags(cpu)))
 		return;
@@ -11244,7 +11347,8 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 		entity_tick(cfs_rq, se, queued);
 	}
 
-	if (static_branch_unlikely(&sched_numa_balancing))
+	if (IS_ENABLED(CONFIG_NUMA_BALANCING) &&
+	    static_branch_unlikely(&sched_numa_balancing))
 		task_tick_numa(rq, curr);
 
 #ifdef CONFIG_SMP
@@ -11764,6 +11868,10 @@ const struct sched_class fair_sched_class = {
 	.fixup_walt_sched_stats	= walt_fixup_sched_stats_fair,
 	.fixup_cumulative_runnable_avg =
 		walt_fixup_cumulative_runnable_avg_fair,
+#endif
+
+#ifdef CONFIG_UCLAMP_TASK
+	.uclamp_enabled		= 1,
 #endif
 };
 

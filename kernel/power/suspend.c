@@ -49,7 +49,7 @@ const char * const mem_sleep_labels[] = {
 const char *mem_sleep_states[PM_SUSPEND_MAX];
 
 suspend_state_t mem_sleep_current = PM_SUSPEND_FREEZE;
-static suspend_state_t mem_sleep_default = PM_SUSPEND_MEM;
+static suspend_state_t mem_sleep_default = PM_SUSPEND_FREEZE;
 
 unsigned int pm_suspend_global_flags;
 EXPORT_SYMBOL_GPL(pm_suspend_global_flags);
@@ -67,6 +67,8 @@ void freeze_set_ops(const struct platform_freeze_ops *ops)
 	freeze_ops = ops;
 	unlock_system_sleep();
 }
+
+extern void thaw_fingerprintd(void);
 
 static void freeze_begin(void)
 {
@@ -421,6 +423,8 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	enable_nonboot_cpus();
 
  Platform_wake:
+	thaw_fingerprintd();
+	
 	platform_resume_noirq(state);
 	dpm_resume_noirq(PMSG_RESUME);
 

@@ -98,10 +98,6 @@
 #if defined(CONFIG_SYSCTL)
 
 /* External variables not in a header file. */
-#ifdef CONFIG_USB
-int deny_new_usb __read_mostly = 0;
-EXPORT_SYMBOL(deny_new_usb);
-#endif
 extern int suid_dumpable;
 #ifdef CONFIG_COREDUMP
 extern int core_uses_pid;
@@ -583,6 +579,29 @@ static struct ctl_table kern_table[] = {
 		.mode		= 0644,
 		.proc_handler	= sched_rr_handler,
 	},
+#ifdef CONFIG_UCLAMP_TASK
+	{
+		.procname	= "sched_util_clamp_min",
+		.data		= &sysctl_sched_uclamp_util_min,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= sysctl_sched_uclamp_handler,
+	},
+	{
+		.procname	= "sched_util_clamp_max",
+		.data		= &sysctl_sched_uclamp_util_max,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= sysctl_sched_uclamp_handler,
+	},
+	{
+		.procname	= "sched_util_clamp_min_rt_default",
+		.data		= &sysctl_sched_uclamp_util_min_rt_default,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= sysctl_sched_uclamp_handler,
+	},
+#endif
 #ifdef CONFIG_SCHED_AUTOGROUP
 	{
 		.procname	= "sched_autogroup_enabled",
@@ -1008,17 +1027,6 @@ static struct ctl_table kern_table[] = {
 		.proc_handler	= proc_dointvec_minmax_sysadmin,
 		.extra1		= &zero,
 		.extra2		= &two,
-	},
-#endif
-#ifdef CONFIG_USB
-	{
-		.procname	= "deny_new_usb",
-		.data		= &deny_new_usb,
-		.maxlen		= sizeof(int),
-		.mode		= 0644,
-		.proc_handler	= proc_dointvec_minmax_sysadmin,
-		.extra1		= &zero,
-		.extra2		= &one,
 	},
 #endif
 	{
@@ -1493,7 +1501,7 @@ static struct ctl_table vm_table[] = {
 		.procname	= "dirty_background_ratio",
 		.data		= &dirty_background_ratio,
 		.maxlen		= sizeof(dirty_background_ratio),
-		.mode		= 0644,
+		.mode		= 0444,
 		.proc_handler	= dirty_background_ratio_handler,
 		.extra1		= &zero,
 		.extra2		= &one_hundred,
@@ -1534,7 +1542,7 @@ static struct ctl_table vm_table[] = {
 		.procname	= "dirty_expire_centisecs",
 		.data		= &dirty_expire_interval,
 		.maxlen		= sizeof(dirty_expire_interval),
-		.mode		= 0644,
+		.mode		= 0444,
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 	},
@@ -1555,7 +1563,7 @@ static struct ctl_table vm_table[] = {
 		.procname	= "swappiness",
 		.data		= &vm_swappiness,
 		.maxlen		= sizeof(vm_swappiness),
-		.mode		= 0644,
+		.mode		= 0444,
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 		.extra2		= &one_hundred,

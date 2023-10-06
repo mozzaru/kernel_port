@@ -3256,7 +3256,7 @@ try_onemore:
 
 	/* init iostat info */
 	spin_lock_init(&sbi->iostat_lock);
-	sbi->iostat_enable = false;
+	sbi->iostat_enable = true;
 
 	for (i = 0; i < NR_PAGE_TYPE; i++) {
 		int n = (i == META) ? 1: NR_TEMP_TYPE;
@@ -3556,6 +3556,8 @@ free_stats:
 	f2fs_gc_sbi_list_del(sbi);
 	f2fs_destroy_stats(sbi);
 free_nm:
+	/* stop discard thread before destroying node manager */
+	f2fs_stop_discard_thread(sbi);
 	f2fs_destroy_node_manager(sbi);
 free_sm:
 	f2fs_destroy_segment_manager(sbi);

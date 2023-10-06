@@ -302,13 +302,6 @@ config BOUNCE
 	  by default when ZONE_DMA or HIGHMEM is selected, but you
 	  may say n to override this.
 
-# On the 'tile' arch, USB OHCI needs the bounce pool since tilegx will often
-# have more than 4GB of memory, but we don't currently use the IOTLB to present
-# a 32-bit address to OHCI.  So we need to use a bounce pool instead.
-config NEED_BOUNCE_POOL
-	bool
-	default y if TILE && USB_OHCI_HCD
-
 config NR_QUICK
 	int
 	depends on QUICKLIST
@@ -779,3 +772,11 @@ config SPECULATIVE_PAGE_FAULT
 	 detected or because underlying PMD or PTE tables are not yet
 	 allocating, it is failing its processing and a classic page fault
 	 is then tried.
+
+config VM_MAX_READAHEAD
+	int "default max readahead window size"
+	default 128
+	help
+	 This sets the VM_MAX_READAHEAD value to allow the readahead window
+	 to grow to a maximum size of configured. This will benefit sequential
+	 read throughput and thus early boot performance.

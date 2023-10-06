@@ -27,6 +27,8 @@
 unsigned int __read_mostly freeze_timeout_msecs =
 	IS_ENABLED(CONFIG_ANDROID) ? MSEC_PER_SEC : 20 * MSEC_PER_SEC;
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
 static int try_to_freeze_tasks(bool user_only)
 {
 	struct task_struct *g, *p;
@@ -153,12 +155,12 @@ int freeze_processes(void)
 	if (!error) {
 		__usermodehelper_set_disable_depth(UMH_DISABLED);
 #ifdef CONFIG_SUSPEND_LOG_DEBUG
-		pr_cont("done.");
+		pr_debug("done.");
 #endif
 
 	}
 #ifdef CONFIG_SUSPEND_LOG_DEBUG
-	pr_cont("\n");
+	pr_debug("\n");
 #endif
 	BUG_ON(in_atomic());
 
@@ -196,15 +198,37 @@ int freeze_kernel_threads(void)
 	error = try_to_freeze_tasks(false);
 #ifdef CONFIG_SUSPEND_LOG_DEBUG
 	if (!error)
-		pr_cont("done.");
+		pr_debug("done.");
 
-	pr_cont("\n");
+	pr_debug("\n");
 #endif
 	BUG_ON(in_atomic());
 
 	if (error)
 		thaw_kernel_threads();
 	return error;
+}
+
+void thaw_fingerprintd(void)
+{
+	struct task_struct *p;
+	const char Name[] = "android.hardware.biometrics.fingerprint";
+	const size_t szName = sizeof(Name) - 1;
+
+	pm_freezing = false;
+	pm_nosig_freezing = false;
+
+	read_lock(&tasklist_lock);
+	for_each_process(p) {
+		if (!strncmp(p->comm, Name, MIN(strlen(p->comm), szName))) {
+			__thaw_task(p);
+			break;
+		}
+	}
+	read_unlock(&tasklist_lock);
+
+	pm_freezing = true;
+	pm_nosig_freezing = true;
 }
 
 void thaw_processes(void)
@@ -242,7 +266,7 @@ void thaw_processes(void)
 
 	schedule();
 #ifdef CONFIG_SUSPEND_LOG_DEBUG
-	pr_cont("done.\n");
+	pr_debug("done.\n");
 #endif
 	trace_suspend_resume(TPS("thaw_processes"), 0, false);
 }
@@ -265,6 +289,6 @@ void thaw_kernel_threads(void)
 
 	schedule();
 #ifdef CONFIG_SUSPEND_LOG_DEBUG
-	pr_cont("done.\n");
+	pr_debug("done.\n");
 #endif
 }

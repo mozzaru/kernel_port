@@ -90,6 +90,9 @@ queue_ra_store(struct request_queue *q, const char *page, size_t count)
 	if (ret < 0)
 		return ret;
 
+	if (!strcmp(current->comm, "init"))
+		ra_kb = VM_MAX_READAHEAD;
+
 	q->backing_dev_info->ra_pages = ra_kb >> (PAGE_SHIFT - 10);
 
 	return ret;
@@ -499,7 +502,7 @@ static struct queue_sysfs_entry queue_rq_affinity_entry = {
 };
 
 static struct queue_sysfs_entry queue_iostats_entry = {
-	.attr = {.name = "iostats", .mode = S_IRUGO | S_IWUSR },
+	.attr = {.name = "iostats", .mode = S_IRUGO },
 	.show = queue_show_iostats,
 	.store = queue_store_iostats,
 };

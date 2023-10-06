@@ -2833,10 +2833,18 @@ static int cgroup_migrate(struct task_struct *leader, bool threadgroup,
  */
 static int cgroup_attach_task(struct cgroup *dst_cgrp,
 			      struct task_struct *leader, bool threadgroup)
+			      
+#ifdef CONFIG_PERF_HUMANTASK
+#define PATH_LEN 1024
+#endif
+
 {
 	LIST_HEAD(preloaded_csets);
 	struct task_struct *task;
 	int ret;
+#ifdef CONFIG_PERF_HUMANTASK
+	char dst_path[PATH_LEN];
+#endif
 
 	if (!cgroup_may_migrate_to(dst_cgrp))
 		return -EBUSY;
@@ -2861,8 +2869,29 @@ static int cgroup_attach_task(struct cgroup *dst_cgrp,
 
 	cgroup_migrate_finish(&preloaded_csets);
 
-	if (!ret)
+		if (!ret) {
+#ifdef CONFIG_PERF_HUMANTASK
+		memset(dst_path, 0, sizeof(dst_path));
+		cgroup_path(dst_cgrp, dst_path, PATH_LEN);
+		trace_cgroup_attach_task(dst_cgrp, dst_path, leader,
+					 threadgroup);
+		if (leader->human_task < 4 && strlen(dst_path) > 2) {
+			task_lock(leader);
+
+			if (strstr(dst_path, "top-app") &&
+			    (leader->pid == leader->tgid)) {
+				if (!leader->human_task)
+					leader->human_task++;
+			} else
+				leader->human_task = 0;
+
+			task_unlock(leader);
+		}
+	}
+#else
 		trace_cgroup_attach_task(dst_cgrp, leader, threadgroup);
+        }
+#endif		
 
 	return ret;
 }
@@ -5943,6 +5972,48 @@ int __init cgroup_init(void)
 	WARN_ON(register_filesystem(&cgroup2_fs_type));
 	WARN_ON(!proc_create("cgroups", 0, NULL, &proc_cgroupstats_operations));
 
+	return 0;
+}
+
+static u64 power_of_ten(int power)
+{
+	u64 v = 1;
+	while (power--)
+		v *= 10;
+	return v;
+}
+
+/**
+ * cgroup_parse_float - parse a floating number
+ * @input: input string
+ * @dec_shift: number of decimal digits to shift
+ * @v: output
+ *
+ * Parse a decimal floating point number in @input and store the result in
+ * @v with decimal point right shifted @dec_shift times.  For example, if
+ * @input is "12.3456" and @dec_shift is 3, *@v will be set to 12345.
+ * Returns 0 on success, -errno otherwise.
+ *
+ * There's nothing cgroup specific about this function except that it's
+ * currently the only user.
+ */
+int cgroup_parse_float(const char *input, unsigned dec_shift, s64 *v)
+{
+	s64 whole, frac = 0;
+	int fstart = 0, fend = 0, flen;
+
+	if (!sscanf(input, "%lld.%n%lld%n", &whole, &fstart, &frac, &fend))
+		return -EINVAL;
+	if (frac < 0)
+		return -EINVAL;
+
+	flen = fend > fstart ? fend - fstart : 0;
+	if (flen < dec_shift)
+		frac *= power_of_ten(dec_shift - flen);
+	else
+		frac = DIV_ROUND_CLOSEST_ULL(frac, power_of_ten(flen - dec_shift));
+
+	*v = whole * power_of_ten(dec_shift) + frac;
 	return 0;
 }
 
