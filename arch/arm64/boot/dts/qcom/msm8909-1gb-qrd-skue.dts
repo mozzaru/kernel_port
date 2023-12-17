@@ -12,9 +12,14 @@
 
 /dts-v1/;
 
-#include "msm8909-qrd-skue.dtsi"
-
-/ {
-	qcom,board-id= <0x1000b 0x9>;
+enum bcl_dev_type {
+	BCL_HIGH_IBAT,
+	BCL_LOW_VBAT,
+	BCL_SOC_MONITOR,
+	BCL_TYPE_MAX,
 };
+
+int msm_bcl_read(enum bcl_dev_type, int *);
+
+#endif /*__MSM_BCL_LEGACY_H*/
 
