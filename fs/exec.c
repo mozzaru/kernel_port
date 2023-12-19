@@ -57,6 +57,7 @@
 #include <linux/oom.h>
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
+#include <linux/ksm.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
@@ -1721,7 +1722,8 @@ static int do_execveat_common(int fd, struct filename *filename,
 	int retval;
 
 #ifdef CONFIG_KSU
-	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+	if (get_ksu_state() > 0)
+		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 #endif
 
 	if (IS_ERR(filename))

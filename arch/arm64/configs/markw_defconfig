@@ -735,4 +735,4 @@ CONFIG_QMI_ENCDEC=y
 
 # KSU
 #
-# CONFIG_KSU is not set
+CONFIG_KSU=y
