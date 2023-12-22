@@ -2396,7 +2396,7 @@ static int wcd_cpe_cmd_lsm_open_tx_v2(
 	cmd_open_tx_v2.topology_id = lsm_top->topology;
 	ret = wcd_cpe_cmi_send_lsm_msg(core, session, &cmd_open_tx_v2);
 	if (ret)
-		dev_err(core->dev,
+		dev_dbg(core->dev,
 			"%s: failed to send open_tx_v2 cmd, err = %d\n",
 			__func__, ret);
 	else
@@ -3603,7 +3603,7 @@ static int wcd_cpe_lsm_eob(
 			struct cpe_lsm_session *session)
 {
 	int ret = 0;
-	struct cmi_hdr lab_eob;
+	struct cmi_hdr lab_eob = { 0 };
 
 	if (fill_lsm_cmd_header_v0_inband(&lab_eob, session->id,
 		0, CPE_LSM_SESSION_CMD_EOB)) {

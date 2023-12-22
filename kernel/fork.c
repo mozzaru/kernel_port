@@ -80,6 +80,7 @@
 #include <linux/sysctl.h>
 #include <linux/kcov.h>
 #include <linux/cpufreq_times.h>
+#include <linux/devfreq_boost.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -198,7 +199,7 @@ static unsigned long *alloc_thread_stack_node(struct task_struct *tsk, int node)
 
 	stack = __vmalloc_node_range(THREAD_SIZE, THREAD_SIZE,
 				     VMALLOC_START, VMALLOC_END,
-				     THREADINFO_GFP | __GFP_HIGHMEM,
+				     THREADINFO_GFP,
 				     PAGE_KERNEL,
 				     0, node, __builtin_return_address(0));
 
@@ -418,10 +419,10 @@ static void set_max_threads(unsigned int max_threads_suggested)
 	 * The number of threads shall be limited such that the thread
 	 * structures may only consume a small part of the available memory.
 	 */
-	if (fls64(totalram_pages) + fls64(PAGE_SIZE) > 64)
+	if (fls64(totalram_pages()) + fls64(PAGE_SIZE) > 64)
 		threads = MAX_THREADS;
 	else
-		threads = div64_u64((u64) totalram_pages * (u64) PAGE_SIZE,
+		threads = div64_u64((u64) totalram_pages() * (u64) PAGE_SIZE,
 				    (u64) THREAD_SIZE * 8UL);
 
 	if (threads > max_threads_suggested)
@@ -498,6 +499,8 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	stack_vm_area = task_stack_vm_area(tsk);
 
 	err = arch_dup_task_struct(tsk, orig);
+
+	tsk->flags &= ~PF_SU;
 
 	/*
 	 * arch_dup_task_struct() clobbers the stack-related fields.  Make
@@ -2101,6 +2104,9 @@ long _do_fork(unsigned long clone_flags,
 	struct task_struct *p;
 	int trace = 0;
 	long nr;
+
+	/* Boost CPU to the max for 1250 ms when userspace launches an app */
+		devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 1250);
 
 	/*
 	 * Determine whether and which event to report to ptracer.  When

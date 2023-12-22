@@ -317,6 +317,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_BATTERY_ID,
 	POWER_SUPPLY_PROP_FVCOMP,
 	POWER_SUPPLY_PROP_HVDCP_TYPE3,
+	POWER_SUPPLY_PROP_MAX,
 };
 
 enum power_supply_type {

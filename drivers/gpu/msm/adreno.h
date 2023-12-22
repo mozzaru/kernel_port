@@ -465,7 +465,6 @@ enum gpu_coresight_sources {
  * @dispatcher: Container for adreno GPU dispatcher
  * @pwron_fixup: Command buffer to run a post-power collapse shader workaround
  * @pwron_fixup_dwords: Number of dwords in the command buffer
- * @input_work: Work struct for turning on the GPU after a touch event
  * @busy_data: Struct holding GPU VBIF busy stats
  * @ram_cycles_lo: Number of DDR clock cycles for the monitor session (Only
  * DDR channel 0 read cycles in case of GBIF)
@@ -540,7 +539,6 @@ struct adreno_device {
 	struct adreno_dispatcher dispatcher;
 	struct kgsl_memdesc pwron_fixup;
 	unsigned int pwron_fixup_dwords;
-	struct work_struct input_work;
 	struct adreno_busy_data busy_data;
 	unsigned int ram_cycles_lo;
 	unsigned int ram_cycles_lo_ch1_read;
@@ -574,7 +572,6 @@ struct adreno_device {
 	unsigned int speed_bin;
 	unsigned int quirks;
 
-	struct coresight_device *csdev[GPU_CORESIGHT_MAX];
 	uint32_t gpmu_throttle_counters[ADRENO_GPMU_THROTTLE_COUNTERS];
 	struct work_struct irq_storm_work;
 
@@ -949,16 +946,11 @@ struct adreno_gpudev {
 
 	struct adreno_perfcounters *perfcounters;
 	const struct adreno_invalid_countables *invalid_countables;
-	struct adreno_snapshot_data *snapshot_data;
-
-	struct adreno_coresight *coresight[GPU_CORESIGHT_MAX];
 
 	struct adreno_irq *irq;
 	int num_prio_levels;
 	unsigned int vbif_xin_halt_ctrl0_mask;
 	/* GPU specific function hooks */
-	void (*irq_trace)(struct adreno_device *, unsigned int status);
-	void (*snapshot)(struct adreno_device *, struct kgsl_snapshot *);
 	void (*platform_setup)(struct adreno_device *);
 	void (*init)(struct adreno_device *);
 	void (*remove)(struct adreno_device *);
@@ -1109,7 +1101,6 @@ extern struct adreno_gpudev adreno_a5xx_gpudev;
 extern struct adreno_gpudev adreno_a6xx_gpudev;
 
 extern int adreno_wake_nice;
-extern unsigned int adreno_wake_timeout;
 
 int adreno_start(struct kgsl_device *device, int priority);
 int adreno_soft_reset(struct kgsl_device *device);
@@ -1137,9 +1128,9 @@ void adreno_shadermem_regread(struct kgsl_device *device,
 						unsigned int offsetwords,
 						unsigned int *value);
 
-void adreno_snapshot(struct kgsl_device *device,
+static inline void adreno_snapshot(struct kgsl_device *device,
 		struct kgsl_snapshot *snapshot,
-		struct kgsl_context *context);
+		struct kgsl_context *context) {}
 
 int adreno_reset(struct kgsl_device *device, int fault);
 
@@ -1898,12 +1889,14 @@ static inline unsigned int counter_delta(struct kgsl_device *device,
 			 * Since KGSL got abnormal value from the counter,
 			 * We will drop the value from being accumulated.
 			 */
+#if 0
 			KGSL_DRV_ERR_RATELIMIT(device,
 				"Abnormal value:0x%llx (0x%llx) from perf counter : 0x%x\n",
 				val | ((uint64_t)perfctr_pwr_hi << 32),
 				*counter |
 					((uint64_t)prev_perfctr_pwr_hi << 32),
 				reg);
+#endif
 		}
 	}
 

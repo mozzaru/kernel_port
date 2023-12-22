@@ -25,6 +25,7 @@
 #include <linux/timer.h>
 #include <linux/context_tracking.h>
 #include <linux/rq_stats.h>
+#include <linux/mm.h>
 
 #include <asm/irq_regs.h>
 
@@ -822,6 +823,7 @@ static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 		nohz_balance_enter_idle(cpu);
 		calc_load_enter_idle();
 		cpu_load_update_nohz_start();
+		quiet_vmstat();
 
 		ts->last_tick = hrtimer_get_expires(&ts->sched_timer);
 		ts->tick_stopped = 1;
@@ -947,16 +949,17 @@ static void __tick_nohz_idle_enter(struct tick_sched *ts)
 	ktime_t now, expires;
 	int cpu = smp_processor_id();
 
-	now = tick_nohz_start_idle(ts);
-
 #ifdef CONFIG_SMP
 	if (check_pending_deferrable_timers(cpu))
 		raise_softirq_irqoff(TIMER_SOFTIRQ);
 #endif
 
+	now = tick_nohz_start_idle(ts);
+
 	if (can_stop_idle_tick(cpu, ts)) {
 		int was_stopped = ts->tick_stopped;
 
+		now = tick_nohz_start_idle(ts);
 		ts->idle_calls++;
 
 		expires = tick_nohz_stop_sched_tick(ts, now, cpu);

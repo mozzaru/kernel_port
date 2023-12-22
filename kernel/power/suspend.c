@@ -26,7 +26,6 @@
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
 #include <linux/ftrace.h>
-#include <linux/rtc.h>
 #include <trace/events/power.h>
 #include <linux/compiler.h>
 #include <linux/moduleparam.h>
@@ -34,8 +33,23 @@
 
 #include "power.h"
 
-const char *pm_labels[] = { "mem", "standby", "freeze", NULL };
-const char *pm_states[PM_SUSPEND_MAX];
+#include <linux/gpio.h>
+extern int slst_gpio_base_id;
+#define PROC_AWAKE_ID 12 /* 12th bit */
+
+const char *pm_states[PM_SUSPEND_MAX] = {
+	[PM_SUSPEND_FREEZE] = "freeze",
+	[PM_SUSPEND_MEM] = "mem",
+};
+const char * const mem_sleep_labels[] = {
+	[PM_SUSPEND_FREEZE] = "s2idle",
+	[PM_SUSPEND_STANDBY] = "shallow",
+	[PM_SUSPEND_MEM] = "deep",
+};
+const char *mem_sleep_states[PM_SUSPEND_MAX];
+
+suspend_state_t mem_sleep_current = PM_SUSPEND_FREEZE;
+static suspend_state_t mem_sleep_default = PM_SUSPEND_MEM;
 
 unsigned int pm_suspend_global_flags;
 EXPORT_SYMBOL_GPL(pm_suspend_global_flags);
@@ -114,30 +128,29 @@ static bool valid_state(suspend_state_t state)
 	return suspend_ops && suspend_ops->valid && suspend_ops->valid(state);
 }
 
-/*
- * If this is set, the "mem" label always corresponds to the deepest sleep state
- * available, the "standby" label corresponds to the second deepest sleep state
- * available (if any), and the "freeze" label corresponds to the remaining
- * available sleep state (if there is one).
- */
-static bool relative_states;
-
 void __init pm_states_init(void)
 {
 	/*
-	 * freeze state should be supported even without any suspend_ops,
-	 * initialize pm_states accordingly here
+	 * Suspend-to-idle should be supported even without any suspend_ops,
+	 * initialize mem_sleep_states[] accordingly here.
 	 */
-	pm_states[PM_SUSPEND_FREEZE] = pm_labels[relative_states ? 0 : 2];
+	mem_sleep_states[PM_SUSPEND_FREEZE] = mem_sleep_labels[PM_SUSPEND_FREEZE];
 }
 
-static int __init sleep_states_setup(char *str)
+static int __init mem_sleep_default_setup(char *str)
 {
-	relative_states = !strncmp(str, "1", 1);
+	suspend_state_t state;
+
+	for (state = PM_SUSPEND_FREEZE; state <= PM_SUSPEND_MEM; state++)
+		if (mem_sleep_labels[state] &&
+		    !strcmp(str, mem_sleep_labels[state])) {
+			mem_sleep_default = state;
+			break;
+		}
+
 	return 1;
 }
-
-__setup("relative_sleep_states=", sleep_states_setup);
+__setup("mem_sleep_default=", mem_sleep_default_setup);
 
 /**
  * suspend_set_ops - Set the global suspend method table.
@@ -145,21 +158,21 @@ __setup("relative_sleep_states=", sleep_states_setup);
  */
 void suspend_set_ops(const struct platform_suspend_ops *ops)
 {
-	suspend_state_t i;
-	int j = 0;
-
 	lock_system_sleep();
 
 	suspend_ops = ops;
-	for (i = PM_SUSPEND_MEM; i >= PM_SUSPEND_STANDBY; i--)
-		if (valid_state(i)) {
-			pm_states[i] = pm_labels[j++];
-		} else if (!relative_states) {
-			pm_states[i] = NULL;
-			j++;
-		}
 
-	pm_states[PM_SUSPEND_FREEZE] = pm_labels[j];
+	if (valid_state(PM_SUSPEND_STANDBY)) {
+		mem_sleep_states[PM_SUSPEND_STANDBY] = mem_sleep_labels[PM_SUSPEND_STANDBY];
+		pm_states[PM_SUSPEND_STANDBY] = "standby";
+		if (mem_sleep_default == PM_SUSPEND_STANDBY)
+			mem_sleep_current = PM_SUSPEND_STANDBY;
+	}
+	if (valid_state(PM_SUSPEND_MEM)) {
+		mem_sleep_states[PM_SUSPEND_MEM] = mem_sleep_labels[PM_SUSPEND_MEM];
+		if (mem_sleep_default == PM_SUSPEND_MEM)
+			mem_sleep_current = PM_SUSPEND_MEM;
+	}
 
 	unlock_system_sleep();
 }
@@ -337,7 +350,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	if (error) {
 		last_dev = suspend_stats.last_failed_dev + REC_FAILED_NUM - 1;
 		last_dev %= REC_FAILED_NUM;
-		pr_err("PM: late suspend of devices failed\n");
+		pr_debug("PM: late suspend of devices failed\n");
 		log_suspend_abort_reason("%s device failed to power down",
 			suspend_stats.failed_devs[last_dev]);
 		goto Platform_finish;
@@ -350,7 +363,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	if (error) {
 		last_dev = suspend_stats.last_failed_dev + REC_FAILED_NUM - 1;
 		last_dev %= REC_FAILED_NUM;
-		pr_err("PM: noirq suspend of devices failed\n");
+		pr_debug("PM: noirq suspend of devices failed\n");
 		log_suspend_abort_reason("noirq suspend of %s device failed",
 			suspend_stats.failed_devs[last_dev]);
 		goto Platform_early_resume;
@@ -377,7 +390,6 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 
 	error = disable_nonboot_cpus();
 	if (error || suspend_test(TEST_CPUS)) {
-		log_suspend_abort_reason("Disabling non-boot cpus failed");
 		goto Enable_cpus;
 	}
 
@@ -432,7 +444,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
  */
 int suspend_devices_and_enter(suspend_state_t state)
 {
-	int error;
+	int error, last_dev;
 	bool wakeup = false;
 
 	if (!sleep_state_supported(state))
@@ -446,8 +458,11 @@ int suspend_devices_and_enter(suspend_state_t state)
 	suspend_test_start();
 	error = dpm_suspend_start(PMSG_SUSPEND);
 	if (error) {
-		pr_err("PM: Some devices failed to suspend, or early wake event detected\n");
-		log_suspend_abort_reason("Some devices failed to suspend, or early wake event detected");
+		last_dev = suspend_stats.last_failed_dev + REC_FAILED_NUM - 1;
+		last_dev %= REC_FAILED_NUM;
+		pr_debug("PM: Some devices failed to suspend, or early wake event detected\n");
+		log_suspend_abort_reason("%s device failed to suspend, or early wake event detected",
+			suspend_stats.failed_devs[last_dev]);
 		goto Recover_platform;
 	}
 	suspend_test_finish("suspend devices");
@@ -488,6 +503,66 @@ static void suspend_finish(void)
 	pm_restore_console();
 }
 
+#ifndef CONFIG_SUSPEND_SKIP_SYNC
+/**
+ * Sync the filesystem in seperate workqueue.
+ * Then check it finishing or not periodically and
+ * abort if any wakeup source comes in. That can reduce
+ * the wakeup latency
+ *
+ */
+#define SYS_SYNC_TIMEOUT 1000
+static bool sys_sync_completed = false;
+static void sys_sync_work_func(struct work_struct *work);
+static DECLARE_WORK(sys_sync_work, sys_sync_work_func);
+static DECLARE_WAIT_QUEUE_HEAD(sys_sync_wait);
+static void sys_sync_work_func(struct work_struct *work)
+{
+#ifdef CONFIG_SUSPEND_LOG_DEBUG
+	pr_info("PM: Syncing filesystems ... \n");
+#endif
+	sys_sync();
+	sys_sync_completed = true;
+	wake_up(&sys_sync_wait);
+}
+
+static int sys_sync_queue(void)
+{
+	int work_status = work_busy(&sys_sync_work);
+
+	/*Check if the previous work still running.*/
+	if (!(work_status & WORK_BUSY_PENDING)) {
+		if (work_status & WORK_BUSY_RUNNING) {
+			while (wait_event_timeout(sys_sync_wait, sys_sync_completed,
+						msecs_to_jiffies(SYS_SYNC_TIMEOUT)) == 0) {
+				if (pm_wakeup_pending()) {
+					pr_info("PM: Pre-Syncing abort\n");
+					goto abort;
+				}
+			}
+			pr_info("PM: Pre-Syncing done\n");
+		}
+		sys_sync_completed = false;
+		schedule_work(&sys_sync_work);
+	}
+
+	while (wait_event_timeout(sys_sync_wait, sys_sync_completed,
+					msecs_to_jiffies(SYS_SYNC_TIMEOUT)) == 0) {
+		if (pm_wakeup_pending()) {
+			pr_info("PM: Syncing abort\n");
+			goto abort;
+		}
+	}
+
+#ifdef CONFIG_SUSPEND_LOG_DEBUG
+	pr_info("PM: Syncing done\n");
+#endif
+	return 0;
+abort:
+	return -EAGAIN;
+}
+#endif
+
 /**
  * enter_state - Do common work needed to enter system sleep state.
  * @state: System sleep state to enter.
@@ -519,9 +594,9 @@ static int enter_state(suspend_state_t state)
 
 #ifndef CONFIG_SUSPEND_SKIP_SYNC
 	trace_suspend_resume(TPS("sync_filesystems"), 0, true);
-	pr_info("PM: Syncing filesystems ... ");
-	sys_sync();
-	pr_cont("done.\n");
+	error = sys_sync_queue();
+	if (error)
+		goto Unlock;
 	trace_suspend_resume(TPS("sync_filesystems"), 0, false);
 #endif
 
@@ -548,18 +623,6 @@ static int enter_state(suspend_state_t state)
 	return error;
 }
 
-static void pm_suspend_marker(char *annotation)
-{
-	struct timespec ts;
-	struct rtc_time tm;
-
-	getnstimeofday(&ts);
-	rtc_time_to_tm(ts.tv_sec, &tm);
-	pr_info("PM: suspend %s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
-		annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
-}
-
 /**
  * pm_suspend - Externally visible function for suspending the system.
  * @state: System sleep state to enter.
@@ -574,15 +637,15 @@ int pm_suspend(suspend_state_t state)
 	if (state <= PM_SUSPEND_ON || state >= PM_SUSPEND_MAX)
 		return -EINVAL;
 
-	pm_suspend_marker("entry");
+	gpio_set_value(slst_gpio_base_id + PROC_AWAKE_ID, 0);
 	error = enter_state(state);
+	gpio_set_value(slst_gpio_base_id + PROC_AWAKE_ID, 1);
 	if (error) {
 		suspend_stats.fail++;
 		dpm_save_failed_errno(error);
 	} else {
 		suspend_stats.success++;
 	}
-	pm_suspend_marker("exit");
 	return error;
 }
 EXPORT_SYMBOL(pm_suspend);

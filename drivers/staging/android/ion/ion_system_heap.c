@@ -134,7 +134,7 @@ static struct page *alloc_buffer_page(struct ion_system_heap *heap,
 			gfp_mask = high_order_gfp_flags;
 
 		page = alloc_pages(gfp_mask, order);
-		if (page)
+		if (cached)
 			ion_pages_sync_for_device(dev, page, PAGE_SIZE << order,
 						  DMA_BIDIRECTIONAL);
 	}
@@ -376,7 +376,7 @@ static int ion_system_heap_allocate(struct ion_heap *heap,
 	if (align > PAGE_SIZE)
 		return -EINVAL;
 
-	if (size / PAGE_SIZE > totalram_pages / 2)
+	if (size / PAGE_SIZE > totalram_pages() / 2)
 		return -ENOMEM;
 
 	data.size = 0;

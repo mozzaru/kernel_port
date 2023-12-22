@@ -2390,16 +2390,20 @@ static int icnss_pd_restart_complete(struct icnss_priv *priv)
 
 	icnss_hw_power_on(priv);
 
+	icnss_block_shutdown(true);
+
 	ret = priv->ops->reinit(&priv->pdev->dev);
 	if (ret < 0) {
 		icnss_pr_err("Driver reinit failed: %d, state: 0x%lx\n",
 			     ret, priv->state);
 		if (!priv->allow_recursive_recovery)
 			ICNSS_ASSERT(false);
+		icnss_block_shutdown(false);
 		goto out_power_off;
 	}
 
 out:
+	icnss_block_shutdown(false);
 	clear_bit(ICNSS_SHUTDOWN_DONE, &penv->state);
 	return 0;
 
@@ -5223,6 +5227,7 @@ static struct platform_driver icnss_driver = {
 		.pm = &icnss_pm_ops,
 		.owner = THIS_MODULE,
 		.of_match_table = icnss_dt_match,
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 };
 

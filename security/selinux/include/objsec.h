@@ -143,7 +143,7 @@ struct key_security_struct {
 };
 
 struct bpf_security_struct {
-	u32 sid;  /*SID of bpf obj creater*/
+	u32 sid;  /* SID of bpf obj creator */
 };
 
 #endif /* _SELINUX_OBJSEC_H_ */

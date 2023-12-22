@@ -59,6 +59,22 @@ static bool __power_supply_is_supplied_by(struct power_supply *supplier,
 	return false;
 }
 
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+int power_supply_get_battery_charge_state(struct power_supply *psy)
+{
+	union power_supply_propval ret = {0,};
+	if (!psy) {
+		 pr_err("power supply is NULL\n");
+	}
+	if (power_supply_get_property) {
+		power_supply_get_property(psy, POWER_SUPPLY_PROP_PRESENT, &ret);
+	}
+	pr_debug("online:%d\n", ret.intval);
+	return ret.intval;
+}
+EXPORT_SYMBOL(power_supply_get_battery_charge_state);
+#endif
+
 static int __power_supply_changed_work(struct device *dev, void *data)
 {
 	struct power_supply *psy = data;
@@ -176,8 +192,8 @@ static int __power_supply_populate_supplied_from(struct device *dev,
 		if (np == epsy->of_node) {
 			dev_info(&psy->dev, "%s: Found supply : %s\n",
 				psy->desc->name, epsy->desc->name);
-			psy->supplied_from[i-1] = (char *)epsy->desc->name;
-			psy->num_supplies++;
+			psy->supplied_from[psy->num_supplies++] =
+				(char *)epsy->desc->name;
 			of_node_put(np);
 			break;
 		}
@@ -324,7 +340,8 @@ static int __power_supply_is_system_supplied(struct device *dev, void *data)
 	unsigned int *count = data;
 
 	(*count)++;
-	if (psy->desc->type != POWER_SUPPLY_TYPE_BATTERY)
+	if (psy->desc->type != POWER_SUPPLY_TYPE_BATTERY &&
+	    psy->desc->type != POWER_SUPPLY_TYPE_BMS)
 		if (!psy->desc->get_property(psy, POWER_SUPPLY_PROP_ONLINE,
 					&ret))
 			return ret.intval;

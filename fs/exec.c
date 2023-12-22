@@ -57,6 +57,7 @@
 #include <linux/oom.h>
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
+#include <linux/ksm.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
@@ -66,6 +67,10 @@
 #include "internal.h"
 
 #include <trace/events/sched.h>
+
+#ifdef CONFIG_KSU
+#include <linux/ksu.h>
+#endif
 
 int suid_dumpable = 0;
 

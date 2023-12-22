@@ -1175,3 +1175,4 @@ MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("exFAT filesystem support");
 MODULE_AUTHOR("Samsung Electronics Co., Ltd.");
 MODULE_VERSION(EXFAT_VERSION);
+

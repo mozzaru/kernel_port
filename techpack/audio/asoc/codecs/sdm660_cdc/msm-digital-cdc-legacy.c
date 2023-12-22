@@ -146,7 +146,7 @@ static int msm_digcdc_clock_control(bool flag)
 			}
 			pr_debug("enabled digital codec core clk\n");
 			atomic_set(&pdata->int_mclk0_enabled, true);
-			schedule_delayed_work(&pdata->disable_int_mclk0_work,
+			queue_delayed_work(system_power_efficient_wq,&pdata->disable_int_mclk0_work,
 					      50);
 		}
 	} else {
@@ -1003,13 +1003,13 @@ static int msm_dig_cdc_codec_enable_dec(struct snd_soc_dapm_widget *w,
 		/* enable HPF */
 		snd_soc_update_bits(codec, tx_mux_ctl_reg, 0x08, 0x00);
 
-		schedule_delayed_work(
+		queue_delayed_work(system_power_efficient_wq,
 			    &msm_dig_cdc->tx_mute_dwork[decimator - 1].dwork,
 			    msecs_to_jiffies(tx_unmute_delay));
 		if (tx_hpf_work[decimator - 1].tx_hpf_cut_of_freq !=
 				CF_MIN_3DB_150HZ) {
 
-			schedule_delayed_work(&tx_hpf_work[decimator - 1].dwork,
+			queue_delayed_work(system_power_efficient_wq,&tx_hpf_work[decimator - 1].dwork,
 					msecs_to_jiffies(300));
 		}
 		/* apply the digital gain after the decimator is enabled*/
@@ -1438,6 +1438,10 @@ static int msm_dig_cdc_soc_probe(struct snd_soc_codec *codec)
 	struct msm_dig_priv *msm_dig_cdc = dev_get_drvdata(codec->dev);
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int i, ret;
+
+#ifdef CONFIG_SOUND_CONTROL
+	sound_control_codec_ptr = codec;
+#endif
 
 	msm_dig_cdc->codec = codec;
 	snd_soc_add_codec_controls(codec, compander_kcontrols,
@@ -1933,12 +1937,14 @@ static const struct soc_enum cf_dec4_enum =
 	SOC_ENUM_SINGLE(MSM89XX_CDC_CORE_TX4_MUX_CTL, 4, 3, cf_text);
 
 static const struct snd_kcontrol_new msm_dig_snd_controls[] = {
+#ifndef CONFIG_SOUND_CONTROL
 	SOC_SINGLE_SX_TLV("DEC1 Volume",
 		MSM89XX_CDC_CORE_TX1_VOL_CTL_GAIN,
 		0, -84, 40, digital_gain),
 	SOC_SINGLE_SX_TLV("DEC2 Volume",
 		  MSM89XX_CDC_CORE_TX2_VOL_CTL_GAIN,
 		0, -84, 40, digital_gain),
+#endif
 	SOC_SINGLE_SX_TLV("DEC3 Volume",
 		  MSM89XX_CDC_CORE_TX3_VOL_CTL_GAIN,
 		0, -84, 40, digital_gain),
@@ -1961,7 +1967,7 @@ static const struct snd_kcontrol_new msm_dig_snd_controls[] = {
 	SOC_SINGLE_SX_TLV("IIR2 INP1 Volume",
 			  MSM89XX_CDC_CORE_IIR2_GAIN_B1_CTL,
 			0,  -84, 40, digital_gain),
-
+#ifndef CONFIG_SOUND_CONTROL
 	SOC_SINGLE_SX_TLV("RX1 Digital Volume",
 		MSM89XX_CDC_CORE_RX1_VOL_CTL_B2_CTL,
 		0, -84, 40, digital_gain),
@@ -1971,7 +1977,7 @@ static const struct snd_kcontrol_new msm_dig_snd_controls[] = {
 	SOC_SINGLE_SX_TLV("RX3 Digital Volume",
 		MSM89XX_CDC_CORE_RX3_VOL_CTL_B2_CTL,
 		0, -84, 40, digital_gain),
-
+#endif
 	SOC_SINGLE_EXT("IIR1 Enable Band1", IIR1, BAND1, 1, 0,
 		msm_dig_cdc_get_iir_enable_audio_mixer,
 		msm_dig_cdc_put_iir_enable_audio_mixer),
@@ -2507,7 +2513,17 @@ static int msm_dig_cdc_probe(struct platform_device *pdev)
 			__func__, "reg");
 		goto err_supplies;
 	}
+#ifdef CONFIG_SOUND_CONTROL
+	sound_control_kobj = kobject_create_and_add("sound_control", kernel_kobj);
+	if (sound_control_kobj == NULL) {
+		pr_warn("%s kobject create failed!\n", __func__);
+        }
 
+	ret = sysfs_create_group(sound_control_kobj, &sound_control_attr_group);
+	if (ret) {
+		pr_warn("%s sysfs file create failed!\n", __func__);
+	}
+#endif
 	msm_dig_cdc->dig_base = ioremap(dig_cdc_addr,
 					MSM89XX_CDC_CORE_MAX_REGISTER);
 	if (msm_dig_cdc->dig_base == NULL) {

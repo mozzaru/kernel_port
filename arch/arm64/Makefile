@@ -94,6 +94,7 @@ ifeq ($(cc-name),clang)
 # TODO: revert when this is fixed in LLVM.
 KBUILD_CFLAGS	+= -mno-implicit-float
 endif
+
 KBUILD_CFLAGS	+= -mgeneral-regs-only $(lseinstr) $(vdso32)
 KBUILD_CFLAGS	+= -fno-asynchronous-unwind-tables
 KBUILD_CFLAGS	+= $(call cc-option, -mpc-relative-literal-loads)
@@ -114,6 +115,18 @@ AS		+= -EL
 LDFLAGS		+= -EL $(call ld-option, -maarch64elf, -maarch64linux)
 UTS_MACHINE	:= aarch64
 endif
+
+# Optimize for CPU
+KBUILD_CFLAGS	+= $(call cc-option,-march=armv8-a+crypto+crc,) $(call cc-option,-mcpu=cortex-a53+crypto+crc,)
+
+# Cortex-A53 optimizations
+arch-$(CONFIG_ARCH_MSM8953)	:= $(call cc-option,-mcpu=cortex-a53+crc+crypto,-march=armv8-a+crc+crypto)
+tune-$(CONFIG_ARCH_MSM8953)	:= -mtune=cortex-a53
+arch-$(CONFIG_ARCH_SDM450)	:= $(call cc-option,-mcpu=cortex-a53+crc+crypto,-march=armv8-a+crc+crypto)
+tune-$(CONFIG_ARCH_SDM450)	:= -mtune=cortex-a53
+
+KBUILD_CFLAGS	+= $(arch-y) $(tune-y)
+KBUILD_AFLAGS	+= $(arch-y) $(tune-y)
 
 CHECKFLAGS	+= -D__aarch64__
 

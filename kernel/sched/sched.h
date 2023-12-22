@@ -324,7 +324,6 @@ struct cfs_bandwidth {
 	ktime_t period;
 	u64 quota, runtime;
 	s64 hierarchical_quota;
-	u64 runtime_expires;
 
 	int idle, period_active;
 	struct hrtimer period_timer, slack_timer;
@@ -485,8 +484,7 @@ struct cfs_rq {
 	u64 min_vruntime_copy;
 #endif
 
-	struct rb_root tasks_timeline;
-	struct rb_node *rb_leftmost;
+	struct rb_root_cached tasks_timeline;
 
 	/*
 	 * 'curr' points to currently running entity on this cfs_rq.
@@ -543,6 +541,8 @@ struct cfs_rq {
 	struct task_group *tg;	/* group that "owns" this runqueue */
 
 #ifdef CONFIG_CFS_BANDWIDTH
+	int			runtime_enabled;
+	s64			runtime_remaining;
 
 #ifdef CONFIG_SCHED_WALT
 	struct walt_sched_stats walt_stats;
@@ -1952,7 +1952,7 @@ static inline unsigned long capacity_orig_of(int cpu)
 	return cpu_rq(cpu)->cpu_capacity_orig;
 }
 
-extern unsigned int walt_disabled;
+extern bool walt_disabled;
 
 static inline unsigned long task_util(struct task_struct *p)
 {
@@ -2449,8 +2449,6 @@ static inline void cpufreq_update_util(struct rq *rq, unsigned int flags)
 	u64 clock;
 
 #ifdef CONFIG_SCHED_WALT
-	if (!(flags & SCHED_CPUFREQ_WALT))
-		return;
 	clock = sched_ktime_clock();
 #else
 	clock = rq_clock(rq);
@@ -3106,7 +3104,7 @@ static inline void update_cpu_cluster_capacity(const cpumask_t *cpus) { }
 #ifdef CONFIG_SMP
 static inline unsigned long thermal_cap(int cpu)
 {
-	return cpu_rq(cpu)->cpu_capacity_orig;
+	return SCHED_CAPACITY_SCALE;
 }
 
 static inline int cpu_max_power_cost(int cpu)

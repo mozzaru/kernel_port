@@ -754,22 +754,20 @@ static int ir_open(struct input_dev *idev)
 #endif
 	struct rc_dev *rdev = input_get_drvdata(idev);
 
-#if IS_ENABLED(CONFIG_MACH_XIAOMI_MSM8937)
-	if (xiaomi_msm8937_mach_get() == XIAOMI_MSM8937_MACH_PRADA ||
-		xiaomi_msm8937_mach_get_family() == XIAOMI_MSM8937_MACH_FAMILY_ULYSSE) {
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	int rc = 0;
 
-		mutex_lock(&rdev->lock);
-		if (!rdev->open_count++)
-			rc = rdev->open(rdev);
-		if (rc < 0)
-			rdev->open_count--;
-		mutex_unlock(&rdev->lock);
+	mutex_lock(&rdev->lock);
+	if (!rdev->open_count++)
+		rc = rdev->open(rdev);
+	if (rc < 0)
+		rdev->open_count--;
+	mutex_unlock(&rdev->lock);
 
-		return rc;
-	}
-#endif
-
+	return rc;
+#else
 	return rc_open(rdev);
+#endif
 }
 
 void rc_close(struct rc_dev *rdev)
@@ -788,19 +786,16 @@ EXPORT_SYMBOL_GPL(rc_close);
 static void ir_close(struct input_dev *idev)
 {
 	struct rc_dev *rdev = input_get_drvdata(idev);
-#if IS_ENABLED(CONFIG_MACH_XIAOMI_MSM8937)
-	if (xiaomi_msm8937_mach_get() == XIAOMI_MSM8937_MACH_PRADA ||
-		xiaomi_msm8937_mach_get_family() == XIAOMI_MSM8937_MACH_FAMILY_ULYSSE) {
-		if (rdev) {
-			mutex_lock(&rdev->lock);
-			if (!--rdev->open_count)
-				rdev->close(rdev);
-			mutex_unlock(&rdev->lock);
-		}
-		return;
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	 if (rdev) {
+		mutex_lock(&rdev->lock);
+		if (!--rdev->open_count)
+			rdev->close(rdev);
+		mutex_unlock(&rdev->lock);
 	}
-#endif
+#else
 	rc_close(rdev);
+#endif
 }
 
 /* class for /sys/class/rc */

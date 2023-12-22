@@ -2195,7 +2195,6 @@ int ipa_q6_pre_shutdown_cleanup(void)
 int ipa_q6_post_shutdown_cleanup(void)
 {
 	int client_idx;
-	int res;
 
 	/*
 	 * Do not delay Q6 pipes here. This may result in IPA reading a
@@ -2219,11 +2218,9 @@ int ipa_q6_post_shutdown_cleanup(void)
 		if (IPA_CLIENT_IS_Q6_NON_ZIP_CONS(client_idx) ||
 			IPA_CLIENT_IS_Q6_ZIP_CONS(client_idx) ||
 			IPA_CLIENT_IS_Q6_NON_ZIP_PROD(client_idx) ||
-			IPA_CLIENT_IS_Q6_ZIP_PROD(client_idx)) {
-			res = ipa_uc_reset_pipe(client_idx);
-			if (res)
-				BUG();
-		}
+			IPA_CLIENT_IS_Q6_ZIP_PROD(client_idx))
+			ipa_uc_reset_pipe(client_idx);
+
 	return 0;
 }
 
@@ -3481,6 +3478,7 @@ void ipa2_dec_client_disable_clks(struct ipa_active_client_logging_info *id)
 	ipa_active_clients_unlock();
 }
 
+#ifdef CONFIG_IPA_WAKELOCK
 /**
 * ipa_inc_acquire_wakelock() - Increase active clients counter, and
 * acquire wakelock if necessary
@@ -3499,8 +3497,6 @@ void ipa_inc_acquire_wakelock(enum ipa_wakelock_ref_client ref_client)
 		IPADBG("client enum %d mask already set. ref cnt = %d\n",
 		ref_client, ipa_ctx->wakelock_ref_cnt.cnt);
 	ipa_ctx->wakelock_ref_cnt.cnt |= (1 << ref_client);
-	if (ipa_ctx->wakelock_ref_cnt.cnt)
-		__pm_stay_awake(&ipa_ctx->w_lock);
 	IPADBG_LOW("active wakelock ref cnt = %d client enum %d\n",
 		ipa_ctx->wakelock_ref_cnt.cnt, ref_client);
 	spin_unlock_irqrestore(&ipa_ctx->wakelock_ref_cnt.spinlock, flags);
@@ -3524,10 +3520,12 @@ void ipa_dec_release_wakelock(enum ipa_wakelock_ref_client ref_client)
 	ipa_ctx->wakelock_ref_cnt.cnt &= ~(1 << ref_client);
 	IPADBG_LOW("active wakelock ref cnt = %d client enum %d\n",
 		ipa_ctx->wakelock_ref_cnt.cnt, ref_client);
-	if (ipa_ctx->wakelock_ref_cnt.cnt == 0)
-		__pm_relax(&ipa_ctx->w_lock);
 	spin_unlock_irqrestore(&ipa_ctx->wakelock_ref_cnt.spinlock, flags);
 }
+#else
+void ipa_inc_acquire_wakelock(enum ipa_wakelock_ref_client ref_client) {}
+void ipa_dec_release_wakelock(enum ipa_wakelock_ref_client ref_client) {}
+#endif
 
 static int ipa_setup_bam_cfg(const struct ipa_plat_drv_res *res)
 {
@@ -5073,6 +5071,7 @@ int ipa2_ap_suspend(struct device *dev)
 
 	IPADBG("Enter...\n");
 
+#ifdef CONFIG_IPA_WAKELOCK
 	/* In case there is a tx/rx handler in polling mode fail to suspend */
 	for (i = 0; i < ipa_ctx->ipa_num_pipes; i++) {
 		if (ipa_ctx->ep[i].sys &&
@@ -5082,6 +5081,7 @@ int ipa2_ap_suspend(struct device *dev)
 			return -EAGAIN;
 		}
 	}
+#endif
 
 	/* release SPS IPA resource without waiting for inactivity timer */
 	atomic_set(&ipa_ctx->sps_pm.eot_activity, 0);

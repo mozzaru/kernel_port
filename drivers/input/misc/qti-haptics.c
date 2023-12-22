@@ -1,13 +1,6 @@
-/* Copyright (c) 2018, 2020, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  */
 
 #if IS_ENABLED(CONFIG_PARSE_ANDROIDBOOT_MODE)
@@ -27,7 +20,6 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/pwm.h>
-#include <linux/qpnp/qpnp-misc.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
@@ -68,8 +60,6 @@ enum haptics_custom_effect_param {
 #define HAP_WAVEFORM_BUFFER_MAX		8
 #define HAP_VMAX_MV_DEFAULT		1800
 #define HAP_VMAX_MV_MAX			3596
-#define HAP_ILIM_MA_DEFAULT		400
-#define HAP_ILIM_MA_MAX			800
 #define HAP_PLAY_RATE_US_DEFAULT	5715
 #define HAP_PLAY_RATE_US_MAX		20475
 #define HAP_PLAY_RATE_US_LSB		5
@@ -141,6 +131,8 @@ enum haptics_custom_effect_param {
 #define HAP_VMAX_MV_LSB			116
 
 #define REG_HAP_ILIM_CFG		0x52
+#define HAP_ILIM_SEL_1000MA		BIT(1)
+#define HAP_ILIM_DEFAULT_SEL		HAP_ILIM_SEL_1000MA
 #define REG_HAP_SC_DEB_CFG		0x53
 #define REG_HAP_RATE_CFG1		0x54
 #define REG_HAP_RATE_CFG2		0x55
@@ -177,7 +169,6 @@ enum haptics_custom_effect_param {
 #define HAP_PLAY_BIT			BIT(7)
 
 #define REG_HAP_SEC_ACCESS		0xD0
-#define REG_HAP_PERPH_RESET_CTL3	0xDA
 
 struct qti_hap_effect {
 	int			id;
@@ -191,6 +182,7 @@ struct qti_hap_effect {
 	int			brake_pattern_length;
 	bool			brake_en;
 	bool			lra_auto_res_disable;
+	enum wf_src		wf_src;
 };
 
 struct qti_hap_play_info {
@@ -205,12 +197,9 @@ struct qti_hap_config {
 	enum actutor_type	act_type;
 	enum lra_res_sig_shape	lra_shape;
 	enum lra_auto_res_mode	lra_auto_res_mode;
-	enum wf_src		ext_src;
 	u16			vmax_mv;
-	u16			ilim_ma;
 	u16			play_rate_us;
 	bool			lra_allow_variable_play_rate;
-	bool			use_ext_wf_src;
 };
 
 struct qti_hap_chip {
@@ -218,7 +207,6 @@ struct qti_hap_chip {
 	struct device			*dev;
 	struct regmap			*regmap;
 	struct input_dev		*input_dev;
-	struct pwm_device		*pwm_dev;
 	struct qti_hap_config		config;
 	struct qti_hap_play_info	play;
 	struct qti_hap_effect		*predefined;
@@ -227,7 +215,6 @@ struct qti_hap_chip {
 	struct hrtimer			stop_timer;
 	struct hrtimer			hap_disable_timer;
 	struct dentry			*hap_debugfs;
-	struct notifier_block		twm_nb;
 	spinlock_t			bus_lock;
 	ktime_t				last_sc_time;
 	int				play_irq;
@@ -238,36 +225,11 @@ struct qti_hap_chip {
 	bool				perm_disable;
 	bool				play_irq_en;
 	bool				vdd_enabled;
-	bool				twm_state;
-	bool				haptics_ext_pin_twm;
-};
-
-struct hap_addr_val {
-	u16 addr;
-	u8  value;
-};
-
-static struct hap_addr_val twm_ext_cfg[] = {
-	{REG_HAP_PLAY, 0x00}, /* Stop playing haptics waveform */
-	{REG_HAP_PERPH_RESET_CTL3, 0x0D}, /* Disable SHUTDOWN1_RB reset */
-	{REG_HAP_SEL, 0x01}, /* Configure for external-pin mode */
-	{REG_HAP_EN_CTL1, 0x80}, /* Enable haptics driver */
-};
-
-static struct hap_addr_val twm_cfg[] = {
-	{REG_HAP_PLAY, 0x00}, /* Stop playing haptics waveform */
-	{REG_HAP_SEL, 0x00}, /* Configure for cmd mode */
-	{REG_HAP_EN_CTL1, 0x00}, /* Enable haptics driver */
-	{REG_HAP_PERPH_RESET_CTL3, 0x0D}, /* Disable SHUTDOWN1_RB reset */
 };
 
 static int wf_repeat[8] = {1, 2, 4, 8, 16, 32, 64, 128};
 static int wf_s_repeat[4] = {1, 2, 4, 8};
-
-static int twm_sys_enable;
-module_param_named(
-	haptics_twm, twm_sys_enable, int, 0600
-);
+const static char * const wf_src_str[] = {"vmax", "buffer", "audio", "pwm"};
 
 static inline bool is_secure(u8 addr)
 {
@@ -437,6 +399,11 @@ static int qti_haptics_config_wf_buffer(struct qti_hap_chip *chip)
 	int rc = 0;
 	size_t len;
 
+	if (effect->pattern == NULL) {
+		dev_dbg(chip->dev, "no pattern for effect %d\n", effect->id);
+		return 0;
+	}
+
 	if (play->playing_pos == effect->pattern_length) {
 		dev_dbg(chip->dev, "pattern playing done\n");
 		return 0;
@@ -509,6 +476,9 @@ static int qti_haptics_module_en(struct qti_hap_chip *chip, bool en)
 	return rc;
 }
 
+static int vmax_mv_override = 0;
+module_param_named(vmax_mv_override, vmax_mv_override, int, 0664);
+
 static int qti_haptics_config_vmax(struct qti_hap_chip *chip, int vmax_mv)
 {
 	u8 addr, mask, val;
@@ -516,6 +486,11 @@ static int qti_haptics_config_vmax(struct qti_hap_chip *chip, int vmax_mv)
 
 	addr = REG_HAP_VMAX_CFG;
 	mask = HAP_VMAX_MV_MASK;
+	if(vmax_mv_override) {
+		if(vmax_mv_override > HAP_VMAX_MV_MAX)
+			vmax_mv_override = HAP_VMAX_MV_MAX;
+		vmax_mv = vmax_mv_override;
+	}
 	val = (vmax_mv / HAP_VMAX_MV_LSB) << HAP_VMAX_MV_SHIFT;
 	rc = qti_haptics_masked_write(chip, addr, mask, val);
 	if (rc < 0)
@@ -532,11 +507,8 @@ static int qti_haptics_config_wf_src(struct qti_hap_chip *chip,
 	int rc;
 
 	addr = REG_HAP_SEL;
-	mask = HAP_WF_SOURCE_MASK | HAP_WF_TRIGGER_BIT;
+	mask = HAP_WF_SOURCE_MASK;
 	val = src << HAP_WF_SOURCE_SHIFT;
-	if (src == EXT_WF_AUDIO || src == EXT_WF_PWM)
-		val |= HAP_WF_TRIGGER_BIT;
-
 	rc = qti_haptics_masked_write(chip, addr, mask, val);
 	if (rc < 0)
 		dev_err(chip->dev, "set HAP_SEL failed, rc=%d\n", rc);
@@ -743,20 +715,22 @@ static int qti_haptics_load_predefined_effect(struct qti_hap_chip *chip,
 	if (rc < 0)
 		return rc;
 
-	rc = qti_haptics_config_wf_buffer(chip);
+	/* Set corresponding WF_SOURCE */
+	rc = qti_haptics_config_wf_src(chip, play->effect->wf_src);
 	if (rc < 0)
 		return rc;
 
-	rc = qti_haptics_config_wf_repeat(chip);
-	if (rc < 0)
-		return rc;
+	if (play->effect->wf_src == INT_WF_BUFFER) {
+		rc = qti_haptics_config_wf_buffer(chip);
+		if (rc < 0)
+			return rc;
 
-	/* Set WF_SOURCE to buffer */
-	rc = qti_haptics_config_wf_src(chip, INT_WF_BUFFER);
-	if (rc < 0)
-		return rc;
+		rc = qti_haptics_config_wf_repeat(chip);
+		if (rc < 0)
+			return rc;
 
-	play->playing_pattern = true;
+		play->playing_pattern = true;
+	}
 
 	return 0;
 }
@@ -769,12 +743,19 @@ static irqreturn_t qti_haptics_play_irq_handler(int irq, void *data)
 	int rc;
 
 	dev_dbg(chip->dev, "play_irq triggered\n");
+
+	if (effect == NULL)
+		goto handled;
+
 	if (play->playing_pos == effect->pattern_length) {
 		dev_dbg(chip->dev, "waveform playing done\n");
 		if (chip->play_irq_en) {
 			disable_irq_nosync(chip->play_irq);
 			chip->play_irq_en = false;
 		}
+
+		/* Clear PLAY after all pattern bytes are queued */
+		qti_haptics_play(chip, false);
 
 		goto handled;
 	}
@@ -846,6 +827,17 @@ static inline void get_play_length(struct qti_hap_play_info *play,
 {
 	struct qti_hap_effect *effect = play->effect;
 	int tmp;
+
+	/*
+	 * Return play_length to 0 if playing LINE-IN signal,
+	 * the playing has to be stopped explicitly from the
+	 * requester.
+	 */
+	if (effect->wf_src == EXT_WF_PWM ||
+			effect->wf_src == EXT_WF_AUDIO) {
+		*length_us = 0;
+		return;
+	}
 
 	tmp = effect->pattern_length * effect->play_rate_us;
 	tmp *= wf_s_repeat[effect->wf_s_repeat_n];
@@ -976,6 +968,8 @@ static int qti_haptics_playback(struct input_dev *dev, int effect_id, int val)
 
 	dev_dbg(chip->dev, "playback, val = %d\n", val);
 	if (!!val) {
+		pr_debug("Vibration - on at %lu us\n",
+				(unsigned long)ktime_to_us(ktime_get()));
 		rc = qti_haptics_module_en(chip, true);
 		if (rc < 0)
 			return rc;
@@ -989,22 +983,24 @@ static int qti_haptics_playback(struct input_dev *dev, int effect_id, int val)
 				enable_irq(chip->play_irq);
 				chip->play_irq_en = true;
 			}
-			/* Toggle PLAY when playing pattern */
-			rc = qti_haptics_play(chip, false);
-			if (rc < 0)
-				return rc;
 		} else {
 			if (chip->play_irq_en) {
 				disable_irq_nosync(chip->play_irq);
 				chip->play_irq_en = false;
 			}
-			secs = play->length_us / USEC_PER_SEC;
-			nsecs = (play->length_us % USEC_PER_SEC) *
-				NSEC_PER_USEC;
-			hrtimer_start(&chip->stop_timer, ktime_set(secs, nsecs),
-					HRTIMER_MODE_REL);
+
+			if (play->length_us != 0) {
+				secs = play->length_us / USEC_PER_SEC;
+				nsecs = (play->length_us % USEC_PER_SEC) *
+					NSEC_PER_USEC;
+				hrtimer_start(&chip->stop_timer,
+						ktime_set(secs, nsecs),
+						HRTIMER_MODE_REL);
+			}
 		}
 	} else {
+		pr_debug("Vibration - off at %lu us\n",
+				(unsigned long)ktime_to_us(ktime_get()));
 		play->length_us = 0;
 		rc = qti_haptics_play(chip, false);
 		if (rc < 0)
@@ -1069,34 +1065,6 @@ static void qti_haptics_set_gain(struct input_dev *dev, u16 gain)
 	qti_haptics_config_vmax(chip, play->vmax_mv);
 }
 
-static int qti_haptics_twm_config(struct qti_hap_chip *chip, bool ext_pin)
-{
-	int rc = 0, i;
-
-	if (ext_pin) {
-		for (i = 0; i < ARRAY_SIZE(twm_ext_cfg); i++) {
-			rc = qti_haptics_write(chip, twm_ext_cfg[i].addr,
-						&twm_ext_cfg[i].value, 1);
-			if (rc < 0)
-				break;
-		}
-	} else {
-		for (i = 0; i < ARRAY_SIZE(twm_cfg); i++) {
-			rc = qti_haptics_write(chip, twm_cfg[i].addr,
-						&twm_cfg[i].value, 1);
-			if (rc < 0)
-				break;
-		}
-	}
-
-	if (rc < 0)
-		pr_err("Failed to write twm_config rc=%d\n", rc);
-	else
-		pr_debug("Enabled haptics for TWM mode\n");
-
-	return 0;
-}
-
 static int qti_haptics_hw_init(struct qti_hap_chip *chip)
 {
 	struct qti_hap_config *config = &chip->config;
@@ -1114,7 +1082,7 @@ static int qti_haptics_hw_init(struct qti_hap_chip *chip)
 
 	/* Config ilim_ma */
 	addr = REG_HAP_ILIM_CFG;
-	val = config->ilim_ma == 400 ? 0 : 1;
+	val = HAP_ILIM_DEFAULT_SEL;
 	rc = qti_haptics_write(chip, addr, &val, 1);
 	if (rc < 0) {
 		dev_err(chip->dev, "write ilim_ma failed, rc=%d\n", rc);
@@ -1150,19 +1118,15 @@ static int qti_haptics_hw_init(struct qti_hap_chip *chip)
 	if (rc < 0)
 		return rc;
 
-	/* Set external waveform source if it's used */
-	if (config->use_ext_wf_src) {
-		rc = qti_haptics_config_wf_src(chip, config->ext_src);
-		if (rc < 0)
-			return rc;
-	}
-
 	/*
 	 * Skip configurations below for ERM actuator
 	 * as they're only for LRA actuators
 	 */
-	if (config->act_type == ACT_ERM)
-		return 0;
+	if (config->act_type == ACT_ERM) {
+		/* Disable AUTO_RES for ERM */
+		rc = qti_haptics_lra_auto_res_enable(chip, false);
+		return rc;
+	}
 
 	addr = REG_HAP_CFG2;
 	val = config->lra_shape;
@@ -1244,29 +1208,222 @@ static void verify_brake_setting(struct qti_hap_effect *effect)
 	effect->brake_en = (val != 0);
 }
 
-static int twm_notifier_cb(struct notifier_block *nb,
-			unsigned long action, void *data)
+static int qti_haptics_parse_dt_per_effect(struct qti_hap_chip *chip)
 {
-	struct qti_hap_chip *chip = container_of(nb,
-				struct qti_hap_chip, twm_nb);
+	const struct device_node *node = chip->dev->of_node;
+	struct device_node *child_node;
+	struct qti_hap_config *config = &chip->config;
+	struct qti_hap_effect *effect;
+	int rc, i = 0, j, m, tmp;
 
-	if (action != PMIC_TWM_CLEAR &&
-			action != PMIC_TWM_ENABLE)
-		pr_debug("Unsupported option %lu\n", action);
-	else
-		chip->twm_state = (u8)action;
+	for_each_available_child_of_node(node, child_node) {
+		effect = &chip->predefined[i++];
+		rc = of_property_read_u32(child_node, "qcom,effect-id",
+				&effect->id);
+		if (rc < 0) {
+			dev_err(chip->dev, "Read qcom,effect-id failed, rc=%d\n",
+					rc);
+			return rc;
+		}
 
-	return NOTIFY_OK;
+		effect->vmax_mv = config->vmax_mv;
+		rc = of_property_read_u32(child_node, "qcom,wf-vmax-mv", &tmp);
+		if (rc < 0)
+			dev_dbg(chip->dev, "Read qcom,wf-vmax-mv failed, rc=%d\n",
+					rc);
+		else
+			effect->vmax_mv = (tmp > HAP_VMAX_MV_MAX) ?
+				HAP_VMAX_MV_MAX : tmp;
+
+		effect->play_rate_us = config->play_rate_us;
+		rc = of_property_read_u32(child_node, "qcom,wf-play-rate-us",
+				&tmp);
+		if (rc < 0)
+			dev_dbg(chip->dev, "Read qcom,wf-play-rate-us failed, rc=%d\n",
+					rc);
+		else
+			effect->play_rate_us = tmp;
+
+		if (config->act_type == ACT_LRA &&
+				!config->lra_allow_variable_play_rate &&
+				config->play_rate_us != effect->play_rate_us) {
+			dev_warn(chip->dev, "play rate should match with LRA resonance frequency\n");
+			effect->play_rate_us = config->play_rate_us;
+		}
+
+		effect->lra_auto_res_disable = of_property_read_bool(child_node,
+				"qcom,lra-auto-resonance-disable");
+
+		tmp = of_property_count_elems_of_size(child_node,
+				"qcom,wf-brake-pattern", sizeof(u8));
+		if (tmp > 0) {
+			if (tmp > HAP_BRAKE_PATTERN_MAX) {
+				dev_err(chip->dev, "wf-brake-pattern shouldn't be more than %d bytes\n",
+						HAP_BRAKE_PATTERN_MAX);
+				return -EINVAL;
+			}
+
+			rc = of_property_read_u8_array(child_node,
+					"qcom,wf-brake-pattern",
+					effect->brake, tmp);
+			if (rc < 0) {
+				dev_err(chip->dev, "Failed to get wf-brake-pattern, rc=%d\n",
+						rc);
+				return rc;
+			}
+
+			effect->brake_pattern_length = tmp;
+			verify_brake_setting(effect);
+		}
+
+		effect->wf_src = INT_WF_BUFFER;
+		if (of_property_read_bool(child_node, "qcom,wf-line-in-pwm"))
+			effect->wf_src = EXT_WF_PWM;
+		if (of_property_read_bool(child_node, "qcom,wf-line-in-audio"))
+			effect->wf_src = EXT_WF_AUDIO;
+
+		/*
+		 * Ignore wf-pattern configuration iff it's
+		 * supposed to play waveform/signal from LINE-IN
+		 * pin
+		 */
+		if (effect->wf_src != INT_WF_BUFFER)
+			continue;
+
+		rc = of_property_count_elems_of_size(child_node,
+				"qcom,wf-pattern", sizeof(u8));
+		if (rc < 0) {
+			dev_err(chip->dev, "Count qcom,wf-pattern property failed, rc=%d\n",
+					rc);
+			return rc;
+		} else if (rc == 0) {
+			dev_dbg(chip->dev, "qcom,wf-pattern has no data\n");
+			return -EINVAL;
+		}
+
+		effect->pattern_length = rc;
+		effect->pattern = devm_kcalloc(chip->dev,
+				effect->pattern_length, sizeof(u8), GFP_KERNEL);
+		if (!effect->pattern)
+			return -ENOMEM;
+
+		rc = of_property_read_u8_array(child_node, "qcom,wf-pattern",
+				effect->pattern, effect->pattern_length);
+		if (rc < 0) {
+			dev_err(chip->dev, "Read qcom,wf-pattern property failed, rc=%d\n",
+					rc);
+			return rc;
+		}
+
+		rc = of_property_read_u32(child_node, "qcom,wf-repeat-count",
+				&tmp);
+		if (rc < 0) {
+			dev_dbg(chip->dev, "Read qcom,wf-repeat-count failed, rc=%d\n",
+					rc);
+		} else {
+			for (j = 0; j < ARRAY_SIZE(wf_repeat); j++)
+				if (tmp <= wf_repeat[j])
+					break;
+
+			effect->wf_repeat_n = j;
+		}
+
+		rc = of_property_read_u32(child_node, "qcom,wf-s-repeat-count",
+				&tmp);
+		if (rc < 0) {
+			dev_dbg(chip->dev, "Read qcom,wf-s-repeat-count failed, rc=%d\n",
+					rc);
+		} else {
+			for (j = 0; j < ARRAY_SIZE(wf_s_repeat); j++)
+				if (tmp <= wf_s_repeat[j])
+					break;
+
+			effect->wf_s_repeat_n = j;
+		}
+	}
+
+	for (j = 0; j < i; j++) {
+		dev_dbg(chip->dev, "effect: %d\n", chip->predefined[j].id);
+		dev_dbg(chip->dev, "    vmax: %d mv\n",
+				chip->predefined[j].vmax_mv);
+		dev_dbg(chip->dev, "    waveform source: %s\n",
+				wf_src_str[chip->predefined[j].wf_src]);
+		dev_dbg(chip->dev, "    brake_en: %d\n",
+				chip->predefined[j].brake_en);
+		for (m = 0; m < chip->predefined[j].brake_pattern_length; m++)
+			dev_dbg(chip->dev, "    brake_pattern[%d]: 0x%x\n",
+					m, chip->predefined[j].brake[m]);
+		dev_dbg(chip->dev, "    lra_auto_res_disable: %d\n",
+				chip->predefined[j].lra_auto_res_disable);
+		if (chip->predefined[j].wf_src != INT_WF_BUFFER)
+			continue;
+
+		for (m = 0; m < chip->predefined[j].pattern_length; m++)
+			dev_dbg(chip->dev, "    pattern[%d]: 0x%x\n",
+					m, chip->predefined[j].pattern[m]);
+		dev_dbg(chip->dev, "    play_rate: %d us\n",
+				chip->predefined[j].play_rate_us);
+		dev_dbg(chip->dev, "    wf_repeat_n: %d\n",
+				chip->predefined[j].wf_repeat_n);
+		dev_dbg(chip->dev, "    wf_s_repeat_n: %d\n",
+				chip->predefined[j].wf_s_repeat_n);
+	}
+
+	return 0;
+}
+
+static int qti_haptics_lra_parse_dt(struct qti_hap_chip *chip)
+{
+	struct qti_hap_config *config = &chip->config;
+	const struct device_node *node = chip->dev->of_node;
+	const char *str;
+	int rc;
+
+	if (config->act_type != ACT_LRA)
+		return 0;
+
+	config->lra_shape = RES_SIG_SINE;
+	rc = of_property_read_string(node,
+			"qcom,lra-resonance-sig-shape", &str);
+	if (!rc) {
+		if (strcmp(str, "sine") == 0) {
+			config->lra_shape = RES_SIG_SINE;
+		} else if (strcmp(str, "square") == 0) {
+			config->lra_shape = RES_SIG_SQUARE;
+		} else {
+			dev_err(chip->dev, "Invalid resonance signal shape: %s\n",
+				str);
+			return -EINVAL;
+		}
+	}
+
+	config->lra_allow_variable_play_rate = of_property_read_bool(node,
+					"qcom,lra-allow-variable-play-rate");
+
+	config->lra_auto_res_mode = AUTO_RES_MODE_ZXD;
+	rc = of_property_read_string(node, "qcom,lra-auto-resonance-mode",
+					&str);
+	if (!rc) {
+		if (strcmp(str, "zxd") == 0) {
+			config->lra_auto_res_mode = AUTO_RES_MODE_ZXD;
+		} else if (strcmp(str, "qwd") == 0) {
+			config->lra_auto_res_mode = AUTO_RES_MODE_QWD;
+		} else {
+			dev_err(chip->dev, "Invalid auto resonance mode: %s\n",
+					str);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
 }
 
 static int qti_haptics_parse_dt(struct qti_hap_chip *chip)
 {
 	struct qti_hap_config *config = &chip->config;
 	const struct device_node *node = chip->dev->of_node;
-	struct device_node *child_node;
-	struct qti_hap_effect *effect;
 	const char *str;
-	int rc = 0, tmp, i = 0, j, m;
+	int rc = 0, tmp;
 
 	rc = of_property_read_u32(node, "reg", &tmp);
 	if (rc < 0) {
@@ -1307,81 +1464,25 @@ static int qti_haptics_parse_dt(struct qti_hap_chip *chip)
 		config->vmax_mv = (tmp > HAP_VMAX_MV_MAX) ?
 			HAP_VMAX_MV_MAX : tmp;
 
-	config->ilim_ma = HAP_ILIM_MA_DEFAULT;
-	rc = of_property_read_u32(node, "qcom,ilim-ma", &tmp);
-	if (!rc)
-		config->ilim_ma = (tmp >= HAP_ILIM_MA_MAX) ?
-			HAP_ILIM_MA_MAX : HAP_ILIM_MA_DEFAULT;
-
 	config->play_rate_us = HAP_PLAY_RATE_US_DEFAULT;
 	rc = of_property_read_u32(node, "qcom,play-rate-us", &tmp);
 	if (!rc)
 		config->play_rate_us = (tmp >= HAP_PLAY_RATE_US_MAX) ?
 			HAP_PLAY_RATE_US_MAX : tmp;
 
-	chip->haptics_ext_pin_twm = of_property_read_bool(node,
-					"qcom,haptics-ext-pin-twm");
-
-	if (of_find_property(node, "qcom,external-waveform-source", NULL)) {
-		if (!of_property_read_string(node,
-				"qcom,external-waveform-source", &str)) {
-			if (strcmp(str, "audio") == 0) {
-				config->ext_src = EXT_WF_AUDIO;
-			} else if (strcmp(str, "pwm") == 0) {
-				config->ext_src = EXT_WF_PWM;
-			} else {
-				dev_err(chip->dev, "Invalid external waveform source: %s\n",
-						str);
-				return -EINVAL;
-			}
-		}
-		config->use_ext_wf_src = true;
-	}
-
 	if (of_find_property(node, "vdd-supply", NULL)) {
 		chip->vdd_supply = devm_regulator_get(chip->dev, "vdd");
 		if (IS_ERR(chip->vdd_supply)) {
 			rc = PTR_ERR(chip->vdd_supply);
 			if (rc != -EPROBE_DEFER)
-				dev_err(chip->dev, "Failed to get vdd regulator");
+				dev_err(chip->dev, "Failed to get vdd regulator\n");
 			return rc;
 		}
 	}
 
-	if (config->act_type == ACT_LRA) {
-		config->lra_shape = RES_SIG_SINE;
-		rc = of_property_read_string(node,
-				"qcom,lra-resonance-sig-shape", &str);
-		if (!rc) {
-			if (strcmp(str, "sine") == 0) {
-				config->lra_shape = RES_SIG_SINE;
-			} else if (strcmp(str, "square") == 0) {
-				config->lra_shape = RES_SIG_SQUARE;
-			} else {
-				dev_err(chip->dev, "Invalid resonance signal shape: %s\n",
-						str);
-				return -EINVAL;
-			}
-		}
-
-		config->lra_allow_variable_play_rate = of_property_read_bool(
-				node, "qcom,lra-allow-variable-play-rate");
-
-		config->lra_auto_res_mode = AUTO_RES_MODE_ZXD;
-		rc = of_property_read_string(node,
-				"qcom,lra-auto-resonance-mode", &str);
-		if (!rc) {
-			if (strcmp(str, "zxd") == 0) {
-				config->lra_auto_res_mode = AUTO_RES_MODE_ZXD;
-			} else if (strcmp(str, "qwd") == 0) {
-				config->lra_auto_res_mode = AUTO_RES_MODE_QWD;
-			} else {
-				dev_err(chip->dev, "Invalid auto resonance mode: %s\n",
-						str);
-				return -EINVAL;
-			}
-		}
-	}
+	rc = qti_haptics_lra_parse_dt(chip);
+	if (rc < 0)
+		return rc;
 
 	chip->constant.pattern = devm_kcalloc(chip->dev,
 			HAP_WAVEFORM_BUFFER_MAX,
@@ -1398,141 +1499,11 @@ static int qti_haptics_parse_dt(struct qti_hap_chip *chip)
 	if (!chip->predefined)
 		return -ENOMEM;
 
+	rc = qti_haptics_parse_dt_per_effect(chip);
+	if (rc < 0)
+		return rc;
+
 	chip->effects_count = tmp;
-
-	for_each_available_child_of_node(node, child_node) {
-		effect = &chip->predefined[i++];
-		rc = of_property_read_u32(child_node, "qcom,effect-id",
-				&effect->id);
-		if (rc < 0) {
-			dev_err(chip->dev, "Read qcom,effect-id failed, rc=%d\n",
-					rc);
-			return rc;
-		}
-
-		effect->vmax_mv = config->vmax_mv;
-		rc = of_property_read_u32(child_node, "qcom,wf-vmax-mv", &tmp);
-		if (rc < 0)
-			dev_dbg(chip->dev, "Read qcom,wf-vmax-mv failed, rc=%d\n",
-					rc);
-		else
-			effect->vmax_mv = (tmp > HAP_VMAX_MV_MAX) ?
-				HAP_VMAX_MV_MAX : tmp;
-
-		rc = of_property_count_elems_of_size(child_node,
-				"qcom,wf-pattern", sizeof(u8));
-		if (rc < 0) {
-			dev_err(chip->dev, "Count qcom,wf-pattern property failed, rc=%d\n",
-					rc);
-			return rc;
-		} else if (rc == 0) {
-			dev_dbg(chip->dev, "qcom,wf-pattern has no data\n");
-			return -EINVAL;
-		}
-
-		effect->pattern_length = rc;
-		effect->pattern = devm_kcalloc(chip->dev,
-				effect->pattern_length, sizeof(u8), GFP_KERNEL);
-		if (!effect->pattern)
-			return -ENOMEM;
-
-		rc = of_property_read_u8_array(child_node, "qcom,wf-pattern",
-				effect->pattern, effect->pattern_length);
-		if (rc < 0) {
-			dev_err(chip->dev, "Read qcom,wf-pattern property failed, rc=%d\n",
-					rc);
-			return rc;
-		}
-
-		effect->play_rate_us = config->play_rate_us;
-		rc = of_property_read_u32(child_node, "qcom,wf-play-rate-us",
-				&tmp);
-		if (rc < 0)
-			dev_dbg(chip->dev, "Read qcom,wf-play-rate-us failed, rc=%d\n",
-					rc);
-		else
-			effect->play_rate_us = tmp;
-
-		if (config->act_type == ACT_LRA &&
-				!config->lra_allow_variable_play_rate &&
-				config->play_rate_us != effect->play_rate_us) {
-			dev_warn(chip->dev, "play rate should match with LRA resonance frequency\n");
-			effect->play_rate_us = config->play_rate_us;
-		}
-
-		rc = of_property_read_u32(child_node, "qcom,wf-repeat-count",
-				&tmp);
-		if (rc < 0) {
-			dev_dbg(chip->dev, "Read qcom,wf-repeat-count failed, rc=%d\n",
-					rc);
-		} else {
-			for (j = 0; j < ARRAY_SIZE(wf_repeat); j++)
-				if (tmp <= wf_repeat[j])
-					break;
-
-			effect->wf_repeat_n = j;
-		}
-
-		rc = of_property_read_u32(child_node, "qcom,wf-s-repeat-count",
-				&tmp);
-		if (rc < 0) {
-			dev_dbg(chip->dev, "Read qcom,wf-s-repeat-count failed, rc=%d\n",
-					rc);
-		} else {
-			for (j = 0; j < ARRAY_SIZE(wf_s_repeat); j++)
-				if (tmp <= wf_s_repeat[j])
-					break;
-
-			effect->wf_s_repeat_n = j;
-		}
-
-		effect->lra_auto_res_disable = of_property_read_bool(child_node,
-				"qcom,lra-auto-resonance-disable");
-
-		tmp = of_property_count_elems_of_size(child_node,
-				"qcom,wf-brake-pattern", sizeof(u8));
-		if (tmp <= 0)
-			continue;
-
-		if (tmp > HAP_BRAKE_PATTERN_MAX) {
-			dev_err(chip->dev, "wf-brake-pattern shouldn't be more than %d bytes\n",
-					HAP_BRAKE_PATTERN_MAX);
-			return -EINVAL;
-		}
-
-		rc = of_property_read_u8_array(child_node,
-				"qcom,wf-brake-pattern", effect->brake, tmp);
-		if (rc < 0) {
-			dev_err(chip->dev, "Failed to get wf-brake-pattern, rc=%d\n",
-					rc);
-			return rc;
-		}
-
-		effect->brake_pattern_length = tmp;
-		verify_brake_setting(effect);
-	}
-
-	for (j = 0; j < i; j++) {
-		dev_dbg(chip->dev, "effect: %d\n", chip->predefined[j].id);
-		dev_dbg(chip->dev, "        vmax: %d mv\n",
-				chip->predefined[j].vmax_mv);
-		dev_dbg(chip->dev, "        play_rate: %d us\n",
-				chip->predefined[j].play_rate_us);
-		for (m = 0; m < chip->predefined[j].pattern_length; m++)
-			dev_dbg(chip->dev, "        pattern[%d]: 0x%x\n",
-					m, chip->predefined[j].pattern[m]);
-		for (m = 0; m < chip->predefined[j].brake_pattern_length; m++)
-			dev_dbg(chip->dev, "        brake_pattern[%d]: 0x%x\n",
-					m, chip->predefined[j].brake[m]);
-		dev_dbg(chip->dev, "    brake_en: %d\n",
-				chip->predefined[j].brake_en);
-		dev_dbg(chip->dev, "    wf_repeat_n: %d\n",
-				chip->predefined[j].wf_repeat_n);
-		dev_dbg(chip->dev, "    wf_s_repeat_n: %d\n",
-				chip->predefined[j].wf_s_repeat_n);
-		dev_dbg(chip->dev, "    lra_auto_res_disable: %d\n",
-				chip->predefined[j].lra_auto_res_disable);
-	}
 
 	return 0;
 }
@@ -1559,6 +1530,9 @@ static int play_rate_dbgfs_write(void *data, u64 val)
 	return 0;
 }
 
+DEFINE_DEBUGFS_ATTRIBUTE(play_rate_debugfs_ops,  play_rate_dbgfs_read,
+		play_rate_dbgfs_write, "%llu\n");
+
 static int vmax_dbgfs_read(void *data, u64 *val)
 {
 	struct qti_hap_effect *effect = (struct qti_hap_effect *)data;
@@ -1579,6 +1553,9 @@ static int vmax_dbgfs_write(void *data, u64 val)
 
 	return 0;
 }
+
+DEFINE_DEBUGFS_ATTRIBUTE(vmax_debugfs_ops, vmax_dbgfs_read,
+		vmax_dbgfs_write, "%llu\n");
 
 static int wf_repeat_n_dbgfs_read(void *data, u64 *val)
 {
@@ -1606,6 +1583,9 @@ static int wf_repeat_n_dbgfs_write(void *data, u64 val)
 	return 0;
 }
 
+DEFINE_DEBUGFS_ATTRIBUTE(wf_repeat_n_debugfs_ops,  wf_repeat_n_dbgfs_read,
+		wf_repeat_n_dbgfs_write, "%llu\n");
+
 static int wf_s_repeat_n_dbgfs_read(void *data, u64 *val)
 {
 	struct qti_hap_effect *effect = (struct qti_hap_effect *)data;
@@ -1632,6 +1612,8 @@ static int wf_s_repeat_n_dbgfs_write(void *data, u64 val)
 	return 0;
 }
 
+DEFINE_DEBUGFS_ATTRIBUTE(wf_s_repeat_n_debugfs_ops,  wf_s_repeat_n_dbgfs_read,
+		wf_s_repeat_n_dbgfs_write, "%llu\n");
 
 static int auto_res_dbgfs_read(void *data, u64 *val)
 {
@@ -1651,16 +1633,36 @@ static int auto_res_dbgfs_write(void *data, u64 val)
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(play_rate_debugfs_ops,  play_rate_dbgfs_read,
-		play_rate_dbgfs_write, "%llu\n");
-DEFINE_SIMPLE_ATTRIBUTE(vmax_debugfs_ops, vmax_dbgfs_read,
-		vmax_dbgfs_write, "%llu\n");
-DEFINE_SIMPLE_ATTRIBUTE(wf_repeat_n_debugfs_ops,  wf_repeat_n_dbgfs_read,
-		wf_repeat_n_dbgfs_write, "%llu\n");
-DEFINE_SIMPLE_ATTRIBUTE(wf_s_repeat_n_debugfs_ops,  wf_s_repeat_n_dbgfs_read,
-		wf_s_repeat_n_dbgfs_write, "%llu\n");
-DEFINE_SIMPLE_ATTRIBUTE(auto_res_debugfs_ops,  auto_res_dbgfs_read,
+DEFINE_DEBUGFS_ATTRIBUTE(auto_res_debugfs_ops,  auto_res_dbgfs_read,
 		auto_res_dbgfs_write, "%llu\n");
+
+#define WF_SRC_BYTES	12
+static ssize_t wf_src_dbgfs_read(struct file *filep,
+		char __user *buf, size_t count, loff_t *ppos)
+{
+	struct qti_hap_effect *effect =
+		(struct qti_hap_effect *)filep->private_data;
+	char kbuf[WF_SRC_BYTES] = {0};
+	int rc, length;
+
+	length = snprintf(kbuf, WF_SRC_BYTES, "%s",
+			wf_src_str[effect->wf_src]);
+
+	if (length > WF_SRC_BYTES - 2)
+		return -EINVAL;
+
+	kbuf[length++] = '\n';
+	kbuf[length++] = '\0';
+
+	rc = simple_read_from_buffer(buf, count, ppos, kbuf, length);
+	return rc;
+}
+
+static const struct file_operations wf_src_dbgfs_ops = {
+	.read = wf_src_dbgfs_read,
+	.owner = THIS_MODULE,
+	.open = simple_open,
+};
 
 #define CHAR_PER_PATTERN 8
 static ssize_t brake_pattern_dbgfs_read(struct file *filep,
@@ -1845,20 +1847,6 @@ static int create_effect_debug_files(struct qti_hap_effect *effect,
 		return -ENOMEM;
 	}
 
-	file = debugfs_create_file("wf_repeat_n", 0644, dir,
-			effect, &wf_repeat_n_debugfs_ops);
-	if (!file) {
-		pr_err("create wf-repeat debugfs node failed\n");
-		return -ENOMEM;
-	}
-
-	file = debugfs_create_file("wf_s_repeat_n", 0644, dir,
-			effect, &wf_s_repeat_n_debugfs_ops);
-	if (!file) {
-		pr_err("create wf-s-repeat debugfs node failed\n");
-		return -ENOMEM;
-	}
-
 	file = debugfs_create_file("lra_auto_res_en", 0644, dir,
 			effect, &auto_res_debugfs_ops);
 	if (!file) {
@@ -1873,10 +1861,34 @@ static int create_effect_debug_files(struct qti_hap_effect *effect,
 		return -ENOMEM;
 	}
 
+	file = debugfs_create_file("wf_src", 0444, dir,
+			effect, &wf_src_dbgfs_ops);
+	if (!file) {
+		pr_err("create wf_src debugfs node failed\n");
+		return -ENOMEM;
+	}
+
+	if (effect->wf_src == EXT_WF_AUDIO || effect->wf_src == EXT_WF_PWM)
+		return 0;
+
 	file = debugfs_create_file("pattern", 0644, dir,
 			effect, &pattern_dbgfs_ops);
 	if (!file) {
 		pr_err("create pattern debugfs node failed\n");
+		return -ENOMEM;
+	}
+
+	file = debugfs_create_file("wf_repeat_n", 0644, dir,
+			effect, &wf_repeat_n_debugfs_ops);
+	if (!file) {
+		pr_err("create wf_repeat debugfs node failed\n");
+		return -ENOMEM;
+	}
+
+	file = debugfs_create_file("wf_s_repeat_n", 0644, dir,
+			effect, &wf_s_repeat_n_debugfs_ops);
+	if (!file) {
+		pr_err("create wf_s_repeat debugfs node failed\n");
 		return -ENOMEM;
 	}
 
@@ -1982,11 +1994,6 @@ static int qti_haptics_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	chip->twm_nb.notifier_call = twm_notifier_cb;
-	rc = qpnp_misc_twm_notifier_register(&chip->twm_nb);
-	if (rc < 0)
-		pr_err("Failed to register twm_notifier_cb rc=%d\n", rc);
-
 	hrtimer_init(&chip->stop_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	chip->stop_timer.function = qti_hap_stop_timer;
 	hrtimer_init(&chip->hap_disable_timer, CLOCK_MONOTONIC,
@@ -2037,7 +2044,6 @@ static int qti_haptics_probe(struct platform_device *pdev)
 
 destroy_ff:
 	input_ff_destroy(chip->input_dev);
-	qpnp_misc_twm_notifier_unregister(&chip->twm_nb);
 	return rc;
 }
 
@@ -2049,7 +2055,6 @@ static int qti_haptics_remove(struct platform_device *pdev)
 	debugfs_remove_recursive(chip->hap_debugfs);
 #endif
 	input_ff_destroy(chip->input_dev);
-	qpnp_misc_twm_notifier_unregister(&chip->twm_nb);
 	dev_set_drvdata(chip->dev, NULL);
 
 	return 0;
@@ -2073,12 +2078,6 @@ static void qti_haptics_shutdown(struct platform_device *pdev)
 		}
 		chip->vdd_enabled = false;
 	}
-
-	if (chip->twm_state == PMIC_TWM_ENABLE && twm_sys_enable) {
-		rc = qti_haptics_twm_config(chip, chip->haptics_ext_pin_twm);
-		if (rc < 0)
-			pr_err("Haptics TWM config failed rc=%d\n", rc);
-	}
 }
 
 static const struct of_device_id haptics_match_table[] = {
@@ -2091,7 +2090,6 @@ static const struct of_device_id haptics_match_table[] = {
 static struct platform_driver qti_haptics_driver = {
 	.driver		= {
 		.name = "qcom,haptics",
-		.owner = THIS_MODULE,
 		.of_match_table = haptics_match_table,
 	},
 	.probe		= qti_haptics_probe,

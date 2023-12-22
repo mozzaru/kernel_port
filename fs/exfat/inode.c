@@ -449,7 +449,6 @@ static int exfat_write_end(struct file *file, struct address_space *mapping,
 	return err;
 }
 
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 static ssize_t exfat_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
 #else

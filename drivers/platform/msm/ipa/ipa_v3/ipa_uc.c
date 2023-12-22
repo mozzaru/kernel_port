@@ -347,7 +347,7 @@ static void ipa3_uc_event_handler(enum ipa_irq_type interrupt,
 		ipa3_ctx->uc_ctx.uc_error_type = evt.params.errorType;
 		ipa3_ctx->uc_ctx.uc_error_timestamp =
 			ipahal_read_reg(IPA_TAG_TIMER);
-		BUG();
+		BUG_ON(evt.params.errorType != IPA_HW_ERROR_NONE);
 	} else if (ipa3_ctx->uc_ctx.uc_sram_mmio->eventOp ==
 		IPA_HW_2_CPU_EVENT_LOG_INFO) {
 		IPADBG("uC evt log info ofst=0x%x\n",
@@ -532,11 +532,8 @@ send_cmd:
 					break;
 				}
 			}
-			if (ipa3_ctx->apply_rg10_wa)
-				udelay(IPA_UC_POLL_SLEEP_USEC);
-			else
-				usleep_range(IPA_UC_POLL_SLEEP_USEC,
-					IPA_UC_POLL_SLEEP_USEC);
+			usleep_range(IPA_UC_POLL_SLEEP_USEC,
+				IPA_UC_POLL_SLEEP_USEC * 1.2);
 		}
 
 		if (index == IPA_UC_POLL_MAX_RETRY) {
@@ -547,7 +544,7 @@ send_cmd:
 					uc_ctx.uc_error_type));
 			}
 			IPA3_UC_UNLOCK(flags);
-			BUG();
+			BUG_ON(ipa3_ctx->uc_ctx.uc_error_type != IPA_HW_ERROR_NONE);
 			return -EFAULT;
 		}
 	} else {
@@ -560,7 +557,7 @@ send_cmd:
 					uc_ctx.uc_error_type));
 			}
 			IPA3_UC_UNLOCK(flags);
-			BUG();
+			BUG_ON(ipa3_ctx->uc_ctx.uc_error_type != IPA_HW_ERROR_NONE);
 			return -EFAULT;
 		}
 	}
@@ -887,10 +884,8 @@ void ipa3_uc_rg10_write_reg(enum ipahal_reg_name reg, u32 n, u32 val)
 		paddr, val);
 	ret = ipa3_uc_send_cmd_64b_param(paddr, val,
 		IPA_CPU_2_HW_CMD_REG_WRITE, 0, true, 0);
-	if (ret) {
+	if (ret)
 		IPAERR("failed to send cmd to uC for reg write\n");
-		BUG();
-	}
 }
 
 /**

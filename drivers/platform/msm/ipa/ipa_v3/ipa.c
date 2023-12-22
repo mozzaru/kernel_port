@@ -4173,6 +4173,7 @@ void ipa3_dec_client_disable_clks_no_block(
 		&ipa_dec_clients_disable_clks_on_wq_work);
 }
 
+#ifdef CONFIG_IPA_WAKELOCK
 /**
  * ipa3_inc_acquire_wakelock() - Increase active clients counter, and
  * acquire wakelock if necessary
@@ -4213,6 +4214,10 @@ void ipa3_dec_release_wakelock(void)
 		__pm_relax(&ipa3_ctx->w_lock);
 	spin_unlock_irqrestore(&ipa3_ctx->wakelock_ref_cnt.spinlock, flags);
 }
+#else
+void ipa3_inc_acquire_wakelock(void) {}
+void ipa3_dec_release_wakelock(void) {}
+#endif
 
 int ipa3_set_clock_plan_from_pm(int idx)
 {
@@ -6933,6 +6938,7 @@ int ipa3_ap_suspend(struct device *dev)
 
 	IPADBG("Enter...\n");
 
+#ifdef CONFIG_IPA_WAKELOCK
 	/* In case there is a tx/rx handler in polling mode fail to suspend */
 	for (i = 0; i < ipa3_ctx->ipa_num_pipes; i++) {
 		if (ipa3_ctx->ep[i].sys &&
@@ -6942,6 +6948,7 @@ int ipa3_ap_suspend(struct device *dev)
 			return -EAGAIN;
 		}
 	}
+#endif
 
 	if (ipa3_ctx->use_ipa_pm) {
 		ipa_pm_deactivate_all_deferred();

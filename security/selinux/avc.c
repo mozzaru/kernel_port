@@ -41,7 +41,7 @@
 #ifdef CONFIG_SECURITY_SELINUX_AVC_STATS
 #define avc_cache_stats_incr(field)	this_cpu_inc(avc_cache_stats.field)
 #else
-#define avc_cache_stats_incr(field)	do {} while (0)
+#define avc_cache_stats_incr(field)	((void)0)
 #endif
 
 struct avc_entry {
@@ -738,8 +738,7 @@ out:
 static void avc_audit_pre_callback(struct audit_buffer *ab, void *a)
 {
 	struct common_audit_data *ad = a;
-	audit_log_format(ab, "avc:  %s ",
-			 ad->selinux_audit_data->denied ? "denied" : "granted");
+	audit_log_format(ab, "avc:  denied ");
 	avc_dump_av(ab, ad->selinux_audit_data->tclass,
 			ad->selinux_audit_data->audited);
 	audit_log_format(ab, " for ");
@@ -774,6 +773,9 @@ noinline int slow_avc_audit(struct selinux_state *state,
 {
 	struct common_audit_data stack_data;
 	struct selinux_audit_data sad;
+
+	if (!denied)
+		return 0;
 
 	if (!a) {
 		a = &stack_data;

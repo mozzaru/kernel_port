@@ -307,7 +307,11 @@ out_micb_en:
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_PULLUP);
 		else
 			/* enable current source and disable mb, pullup*/
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
+#else
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_CS);
+#endif
 
 		/* configure cap settings properly when micbias is disabled */
 		if (mbhc->mbhc_cb->set_cap_mode)
@@ -325,9 +329,7 @@ out_micb_en:
 		if (micbias2)
 			/* Disable cs, pullup & enable micbias */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
-		else
-			/* Disable micbias, pullup & enable cs */
-			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_CS);
+
 		mutex_unlock(&mbhc->hphl_pa_lock);
 		clear_bit(WCD_MBHC_ANC0_OFF_ACK, &mbhc->hph_anc_state);
 		break;
@@ -343,9 +345,7 @@ out_micb_en:
 		if (micbias2)
 			/* Disable cs, pullup & enable micbias */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
-		else
-			/* Disable micbias, pullup & enable cs */
-			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_CS);
+
 		mutex_unlock(&mbhc->hphr_pa_lock);
 		clear_bit(WCD_MBHC_ANC1_OFF_ACK, &mbhc->hph_anc_state);
 		break;
@@ -725,6 +725,7 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 				    (mbhc->hph_status | SND_JACK_MECHANICAL),
 				    WCD_MBHC_JACK_MASK);
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
+
 	}
 	pr_debug("%s: leave hph_status %x\n", __func__, mbhc->hph_status);
 }
@@ -1113,7 +1114,7 @@ static irqreturn_t wcd_mbhc_btn_press_handler(int irq, void *data)
 	}
 	mbhc->buttons_pressed |= mask;
 	mbhc->mbhc_cb->lock_sleep(mbhc, true);
-	if (schedule_delayed_work(&mbhc->mbhc_btn_dwork,
+	if (queue_delayed_work(system_power_efficient_wq, &mbhc->mbhc_btn_dwork,
 				msecs_to_jiffies(400)) == 0) {
 		WARN(1, "Button pressed twice without release event\n");
 		mbhc->mbhc_cb->lock_sleep(mbhc, false);
@@ -1153,6 +1154,12 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 	if (mbhc->mbhc_detection_logic == WCD_DETECTION_LEGACY &&
 		mbhc->current_plug == MBHC_PLUG_TYPE_HEADPHONE) {
 		wcd_mbhc_find_plug_and_report(mbhc, MBHC_PLUG_TYPE_HEADSET);
+#ifdef CONFIG_MACH_XIAOMI_C6
+		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
+				0, WCD_MBHC_JACK_MASK);
+		msleep(100);
+		wcd_mbhc_report_plug(mbhc, 1, SND_JACK_HEADSET);
+#endif
 		goto exit;
 
 	}
@@ -1751,7 +1758,7 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 		rc = wcd_mbhc_initialise(mbhc);
 	} else {
 		if (!mbhc->mbhc_fw || !mbhc->mbhc_cal)
-			schedule_delayed_work(&mbhc->mbhc_firmware_dwork,
+			queue_delayed_work(system_power_efficient_wq, &mbhc->mbhc_firmware_dwork,
 				      usecs_to_jiffies(FW_READ_TIMEOUT));
 		else
 			pr_err("%s: Skipping to read mbhc fw, 0x%pK %pK\n",

@@ -4919,7 +4919,7 @@ retry_enum:
 	status = 0;
 
 	for (i = 0; i < SET_CONFIG_TRIES; i++) {
-		usb_lock_port(port_dev);
+	        usb_lock_port(port_dev);
 		mutex_lock(hcd->address0_mutex);
 		retry_locked = true;
 
@@ -5628,7 +5628,7 @@ static int usb_reset_and_verify_device(struct usb_device *udev)
 	bos = udev->bos;
 	udev->bos = NULL;
 
-	mutex_lock(hcd->address0_mutex);
+        mutex_lock(hcd->address0_mutex);
 
 	for (i = 0; i < SET_CONFIG_TRIES; ++i) {
 

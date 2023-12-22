@@ -9803,7 +9803,6 @@ struct afe_spkr_prot_calib_get_resp {
 	struct asm_calib_res_cfg res_cfg;
 } __packed;
 
-
 /* SRS TRUMEDIA start */
 /* topology */
 #define SRS_TRUMEDIA_TOPOLOGY_ID			0x00010D90

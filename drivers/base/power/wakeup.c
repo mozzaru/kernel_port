@@ -836,11 +836,6 @@ void pm_get_active_wakeup_sources(char *pending_wakeup_source, size_t max)
 			last_active_ws = ws;
 		}
 	}
-	if (!active && last_active_ws) {
-		scnprintf(pending_wakeup_source, max,
-				"Last active Wakeup Source: %s",
-				last_active_ws->name);
-	}
 	srcu_read_unlock(&wakeup_srcu, srcuidx);
 }
 EXPORT_SYMBOL_GPL(pm_get_active_wakeup_sources);
@@ -895,7 +890,7 @@ bool pm_wakeup_pending(void)
 	spin_unlock_irqrestore(&events_lock, flags);
 
 	if (ret) {
-		pr_info("PM: Wakeup pending, aborting suspend\n");
+		pr_debug("PM: Wakeup pending, aborting suspend\n");
 		pm_print_active_wakeup_sources();
 	}
 

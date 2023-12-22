@@ -31,7 +31,6 @@
 #include <linux/suspend.h>
 #include <trace/events/power.h>
 #include <linux/cpufreq.h>
-#include <linux/cpuidle.h>
 #include <linux/timer.h>
 #include <linux/wakeup_reason.h>
 
@@ -378,7 +377,7 @@ static void dpm_show_time(ktime_t starttime, pm_message_t state, char *info)
 	usecs = usecs64;
 	if (usecs == 0)
 		usecs = 1;
-	pr_info("PM: %s%s%s of devices complete after %ld.%03ld msecs\n",
+	pr_debug("PM: %s%s%s of devices complete after %ld.%03ld msecs\n",
 		info ?: "", info ? " " : "", pm_verb(state.event),
 		usecs / USEC_PER_MSEC, usecs % USEC_PER_MSEC);
 }
@@ -447,7 +446,7 @@ static void dpm_watchdog_set(struct dpm_watchdog *wd, struct device *dev)
 
 	init_timer_on_stack(timer);
 	/* use same timeout value for both suspend and resume */
-	timer->expires = jiffies + HZ * CONFIG_DPM_WATCHDOG_TIMEOUT;
+	timer->expires = jiffies + msecs_to_jiffies(1000) * CONFIG_DPM_WATCHDOG_TIMEOUT;
 	timer->function = dpm_watchdog_handler;
 	timer->data = (unsigned long)wd;
 	add_timer(timer);
@@ -599,7 +598,6 @@ void dpm_resume_noirq(pm_message_t state)
 	dpm_show_time(starttime, state, "noirq");
 	resume_device_irqs();
 	device_wakeup_disarm_wake_irqs();
-	cpuidle_resume();
 	trace_suspend_resume(TPS("dpm_resume_noirq"), state.event, false);
 }
 
@@ -1118,7 +1116,6 @@ int dpm_suspend_noirq(pm_message_t state)
 	int error = 0;
 
 	trace_suspend_resume(TPS("dpm_suspend_noirq"), state.event, true);
-	cpuidle_pause();
 	device_wakeup_arm_wake_irqs();
 	suspend_device_irqs();
 	mutex_lock(&dpm_list_mtx);
@@ -1483,10 +1480,10 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	dpm_watchdog_clear(&wd);
 
  Complete:
-	complete_all(&dev->power.completion);
 	if (error)
 		async_error = error;
 
+	complete_all(&dev->power.completion);
 	TRACE_SUSPEND(error);
 	return error;
 }
@@ -1686,6 +1683,7 @@ int dpm_prepare(pm_message_t state)
 			printk(KERN_INFO "PM: Device %s not prepared "
 				"for power transition: code %d\n",
 				dev_name(dev), error);
+			dpm_save_failed_dev(dev_name(dev));
 			put_device(dev);
 			break;
 		}

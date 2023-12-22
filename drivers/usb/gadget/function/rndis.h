@@ -203,7 +203,11 @@ typedef struct rndis_params
 
 	void			*v;
 	struct list_head	resp_queue;
+<<<<<<< HEAD
 	spinlock_t		resp_lock;
+=======
+	spinlock_t		lock;
+>>>>>>> sonic/master
 } rndis_params;
 
 /* RNDIS Message parser and other useless functions */

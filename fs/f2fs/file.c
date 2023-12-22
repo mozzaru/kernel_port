@@ -29,7 +29,6 @@
 #include "gc.h"
 #include "trace.h"
 #include <trace/events/f2fs.h>
-#include <trace/events/android_fs.h>
 
 static int f2fs_filemap_fault(struct vm_area_struct *vma,
 					struct vm_fault *vmf)
@@ -140,9 +139,11 @@ static int get_parent_ino(struct inode *inode, nid_t *pino)
 {
 	struct dentry *dentry;
 
-	inode = igrab(inode);
-	dentry = d_find_any_alias(inode);
-	iput(inode);
+	/*
+	 * Make sure to get the non-deleted alias.  The alias associated with
+	 * the open file descriptor being fsync()'ed may be deleted already.
+	 */
+	dentry = d_find_alias(inode);
 	if (!dentry)
 		return 0;
 
@@ -226,15 +227,6 @@ static int f2fs_do_sync_file(struct file *file, loff_t start, loff_t end,
 		return 0;
 
 	trace_f2fs_sync_file_enter(inode);
-
-	if (trace_android_fs_fsync_start_enabled()) {
-		char *path, pathbuf[MAX_TRACE_PATHBUF_LEN];
-
-		path = android_fstrace_get_pathname(pathbuf,
-				MAX_TRACE_PATHBUF_LEN, inode);
-		trace_android_fs_fsync_start(inode,
-				current->pid, path, current->comm);
-	}
 
 	if (S_ISDIR(inode->i_mode))
 		goto go_write;
@@ -341,7 +333,6 @@ flush_out:
 out:
 	trace_f2fs_sync_file_exit(inode, cp_reason, datasync, ret);
 	f2fs_trace_ios(NULL, 1);
-	trace_android_fs_fsync_end(inode, start, end - start);
 
 	return ret;
 }
@@ -888,9 +879,7 @@ const struct inode_operations f2fs_file_inode_operations = {
 	.setattr	= f2fs_setattr,
 	.get_acl	= f2fs_get_acl,
 	.set_acl	= f2fs_set_acl,
-#ifdef CONFIG_F2FS_FS_XATTR
 	.listxattr	= f2fs_listxattr,
-#endif
 	.fiemap		= f2fs_fiemap,
 };
 
@@ -1573,7 +1562,11 @@ next_alloc:
 
 		down_write(&sbi->pin_sem);
 		map.m_seg_type = CURSEG_COLD_DATA_PINNED;
+
+		f2fs_lock_op(sbi);
 		f2fs_allocate_new_segments(sbi, CURSEG_COLD_DATA);
+		f2fs_unlock_op(sbi);
+
 		err = f2fs_map_blocks(inode, &map, 1, F2FS_GET_BLOCK_PRE_DIO);
 		up_write(&sbi->pin_sem);
 

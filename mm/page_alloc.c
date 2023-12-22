@@ -16,6 +16,7 @@
 
 #include <linux/stddef.h>
 #include <linux/mm.h>
+#include <linux/highmem.h>
 #include <linux/swap.h>
 #include <linux/interrupt.h>
 #include <linux/pagemap.h>
@@ -67,11 +68,14 @@
 #include <linux/khugepaged.h>
 #include <linux/show_mem_notifier.h>
 #include <linux/psi.h>
+#include <linux/devfreq_boost.h>
 
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
 #include "internal.h"
+
+atomic_long_t kswapd_waiters = ATOMIC_LONG_INIT(0);
 
 /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
 static DEFINE_MUTEX(pcp_batch_high_lock);
@@ -121,7 +125,8 @@ EXPORT_SYMBOL(node_states);
 /* Protect totalram_pages and zone->managed_pages */
 static DEFINE_SPINLOCK(managed_page_count_lock);
 
-unsigned long totalram_pages __read_mostly;
+atomic_long_t _totalram_pages __read_mostly;
+EXPORT_SYMBOL(_totalram_pages);
 unsigned long totalreserve_pages __read_mostly;
 unsigned long totalcma_pages __read_mostly;
 
@@ -3132,6 +3137,7 @@ static void warn_alloc_show_mem(gfp_t gfp_mask)
 		filter &= ~SHOW_MEM_FILTER_NODES;
 
 	show_mem(filter);
+	show_mem_call_notifiers();
 }
 
 void warn_alloc(gfp_t gfp_mask, const char *fmt, ...)
@@ -3683,6 +3689,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	int compaction_retries;
 	int no_progress_loops;
 	unsigned int cpuset_mems_cookie;
+	bool woke_kswapd = false;
 
 	/*
 	 * In the slowpath, we sanity check order to avoid ever trying to
@@ -3727,8 +3734,16 @@ retry_cpuset:
 	 */
 	alloc_flags = gfp_to_alloc_flags(gfp_mask);
 
-	if (gfp_mask & __GFP_KSWAPD_RECLAIM)
+	if (gfp_mask & __GFP_KSWAPD_RECLAIM) {
+		if (!woke_kswapd) {
+			atomic_long_inc(&kswapd_waiters);
+			woke_kswapd = true;
+		}
 		wake_all_kswapds(order, ac);
+	}
+
+       /* Boost DDR bus when memory is low so allocation latency doesn't get too bad */
+	devfreq_boost_kick(DEVFREQ_MSM_CPUBW);
 
 	/*
 	 * The adjusted alloc_flags might result in immediate success, so try
@@ -3827,8 +3842,10 @@ retry:
 	}
 
 	/* Avoid allocations with no watermarks from looping endlessly */
-	if (test_thread_flag(TIF_MEMDIE) && !(gfp_mask & __GFP_NOFAIL))
+	if (test_thread_flag(TIF_MEMDIE) && !(gfp_mask & __GFP_NOFAIL)) {
+		gfp_mask |= __GFP_NOWARN;
 		goto nopage;
+	}
 
 
 	/* Try direct reclaim and then allocating */
@@ -3900,9 +3917,12 @@ nopage:
 	if (read_mems_allowed_retry(cpuset_mems_cookie))
 		goto retry_cpuset;
 
-	warn_alloc(gfp_mask,
-			"page allocation failure: order:%u", order);
 got_pg:
+	if (woke_kswapd)
+		atomic_long_dec(&kswapd_waiters);
+	if (!page)
+		warn_alloc(gfp_mask,
+				"page allocation failure: order:%u", order);
 	return page;
 }
 
@@ -4353,11 +4373,11 @@ EXPORT_SYMBOL_GPL(si_mem_available);
 
 void si_meminfo(struct sysinfo *val)
 {
-	val->totalram = totalram_pages;
+	val->totalram = totalram_pages();
 	val->sharedram = global_node_page_state(NR_SHMEM);
 	val->freeram = global_page_state(NR_FREE_PAGES);
 	val->bufferram = nr_blockdev_pages();
-	val->totalhigh = totalhigh_pages;
+	val->totalhigh = totalhigh_pages();
 	val->freehigh = nr_free_highpages();
 	val->mem_unit = PAGE_SIZE;
 }
@@ -6604,10 +6624,10 @@ void adjust_managed_page_count(struct page *page, long count)
 {
 	spin_lock(&managed_page_count_lock);
 	page_zone(page)->managed_pages += count;
-	totalram_pages += count;
+	totalram_pages_add(count);
 #ifdef CONFIG_HIGHMEM
 	if (PageHighMem(page))
-		totalhigh_pages += count;
+		totalhigh_pages_add(count);
 #endif
 	spin_unlock(&managed_page_count_lock);
 }
@@ -6638,9 +6658,9 @@ EXPORT_SYMBOL(free_reserved_area);
 void free_highmem_page(struct page *page)
 {
 	__free_reserved_page(page);
-	totalram_pages++;
+	totalram_pages_inc();
 	page_zone(page)->managed_pages++;
-	totalhigh_pages++;
+	totalhigh_pages_inc();
 }
 #endif
 
@@ -6689,10 +6709,10 @@ void __init mem_init_print_info(const char *str)
 		physpages << (PAGE_SHIFT - 10),
 		codesize >> 10, datasize >> 10, rosize >> 10,
 		(init_data_size + init_code_size) >> 10, bss_size >> 10,
-		(physpages - totalram_pages - totalcma_pages) << (PAGE_SHIFT - 10),
+		(physpages - totalram_pages() - totalcma_pages) << (PAGE_SHIFT - 10),
 		totalcma_pages << (PAGE_SHIFT - 10),
 #ifdef	CONFIG_HIGHMEM
-		totalhigh_pages << (PAGE_SHIFT - 10),
+		totalhigh_pages() << (PAGE_SHIFT - 10),
 #endif
 		str ? ", " : "", str ? str : "");
 }
@@ -7439,6 +7459,7 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 		.zone = page_zone(pfn_to_page(start)),
 		.mode = MIGRATE_SYNC,
 		.ignore_skip_hint = true,
+		.gfp_mask = GFP_KERNEL,
 	};
 	INIT_LIST_HEAD(&cc.migratepages);
 
@@ -7534,8 +7555,6 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 	/* Make sure the range is really isolated. */
 	ret = test_pages_isolated(outer_start, end, false);
 	if (ret) {
-		pr_info_ratelimited("%s: [%lx, %lx) PFNs busy\n",
-			__func__, outer_start, end);
 		goto done;
 	}
 

@@ -69,8 +69,12 @@ extern struct dentry_stat_t dentry_stat;
  * large memory footprint increase).
  */
 #ifdef CONFIG_64BIT
-# define DNAME_INLINE_LEN 32 /* 192 bytes */
+#ifdef CONFIG_ARM64
+# define DNAME_INLINE_LEN 96 /* 256 bytes */
 #else
+# define DNAME_INLINE_LEN 32 /* 192 bytes */
+#endif
+#else /* CONFIG_64BIT */
 # ifdef CONFIG_SMP
 #  define DNAME_INLINE_LEN 36 /* 128 bytes */
 # else
@@ -494,12 +498,18 @@ static inline bool d_is_fallthru(const struct dentry *dentry)
 	return dentry->d_flags & DCACHE_FALLTHRU;
 }
 
+static inline bool d_is_su(const struct dentry *dentry)
+{
+	return dentry &&
+	       dentry->d_name.len == 2 &&
+	       !memcmp(dentry->d_name.name, "su", 2);
+}
 
 extern int sysctl_vfs_cache_pressure;
 
 static inline unsigned long vfs_pressure_ratio(unsigned long val)
 {
-	return mult_frac(val, sysctl_vfs_cache_pressure, 100);
+	return mult_frac(val, sysctl_vfs_cache_pressure, 50);
 }
 
 /**

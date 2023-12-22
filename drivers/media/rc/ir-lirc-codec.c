@@ -117,6 +117,7 @@ static ssize_t ir_lirc_transmit_ir(struct file *file, const char __user *buf,
 	unsigned int *txbuf; /* buffer with values to transmit */
 	ssize_t ret = -EINVAL;
 	size_t count;
+#ifndef CONFIG_IR_PWM
 	ktime_t start;
 	s64 towait;
 	unsigned int duration = 0; /* signal duration in us */
@@ -162,6 +163,7 @@ static ssize_t ir_lirc_transmit_ir(struct file *file, const char __user *buf,
 			duration += txbuf[i];
 		}
 	}
+#endif
 
 	ret = dev->tx_ir(dev, txbuf, count);
 	if (ret < 0)
@@ -174,6 +176,7 @@ static ssize_t ir_lirc_transmit_ir(struct file *file, const char __user *buf,
 
 	ret *= sizeof(unsigned int);
 
+#ifndef CONFIG_IR_PWM
 	/*
 	 * The lircd gap calculation expects the write function to
 	 * wait for the actual IR signal to be transmitted before
@@ -186,6 +189,7 @@ static ssize_t ir_lirc_transmit_ir(struct file *file, const char __user *buf,
 			schedule_timeout(usecs_to_jiffies(towait));
 		}
 	}
+#endif
 
 out:
 	kfree(txbuf);
@@ -347,6 +351,7 @@ static int ir_lirc_open(void *data)
 		return ret;
 	}
 	return 0;
+#endif
 }
 
 static void ir_lirc_close(void *data)
@@ -361,6 +366,7 @@ static void ir_lirc_close(void *data)
 		mutex_unlock(&dev->lock);
 	}
 	return;
+#endif
 }
 
 static const struct file_operations lirc_fops = {
@@ -428,6 +434,9 @@ static int ir_lirc_register(struct rc_dev *dev)
 	drv->rbuf = rbuf;
 	drv->set_use_inc = &ir_lirc_open;
 	drv->set_use_dec = &ir_lirc_close;
+#ifdef CONFIG_MACH_XIAOMI_MARKW
+	drv->code_length = sizeof(int) * 8;
+#else
 	drv->code_length = sizeof(struct ir_raw_event) * 8;
 	if (is_xiaomi_lirc)
 		drv->code_length = sizeof(int) * 8;

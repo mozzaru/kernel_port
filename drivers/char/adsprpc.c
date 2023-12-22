@@ -73,7 +73,7 @@
 #define SENSORS_PDR_SERVICE_LOCATION_CLIENT_NAME   "sensors_pdr_adsprpc"
 #define SENSORS_PDR_ADSP_SERVICE_NAME              "tms/servreg"
 
-#define RPC_TIMEOUT	(5 * HZ)
+#define RPC_TIMEOUT	msecs_to_jiffies(5000)
 #define BALIGN		128
 #define NUM_CHANNELS	4	/* adsp, mdsp, slpi, cdsp*/
 #define NUM_SESSIONS	9	/*8 compute, 1 cpz*/
@@ -3437,7 +3437,7 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 	int i, j, sess_used = 0, ret = 0;
 	char *fileinfo = NULL;
 	char single_line[UL_SIZE] = "----------------";
-	char title[UL_SIZE] = "=========================";
+	char title[UL_SIZE] = "========================";
 
 	fileinfo = kzalloc(DEBUGFS_SIZE, GFP_KERNEL);
 	if (!fileinfo)

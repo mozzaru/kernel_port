@@ -61,6 +61,12 @@ struct sched_param {
 
 #include <asm/processor.h>
 
+int  su_instances(void);
+bool su_running(void);
+bool su_visible(void);
+void su_exec(void);
+void su_exit(void);
+
 #define SCHED_ATTR_SIZE_VER0	48	/* sizeof first published struct */
 #define SCHED_ATTR_SIZE_VER1	56	/* add: util_{min,max} */
 
@@ -1234,7 +1240,6 @@ struct eas_stats {
 
 	/* select_energy_cpu_brute() stats */
 	u64 secb_attempts;
-	u64 secb_sync;
 	u64 secb_idle_bt;
 	u64 secb_insuff_cap;
 	u64 secb_no_nrg_sav;
@@ -1533,7 +1538,6 @@ struct sched_statistics {
 
 	/* energy_aware_wake_cpu() */
 	u64			nr_wakeups_secb_attempts;
-	u64			nr_wakeups_secb_sync;
 	u64			nr_wakeups_secb_idle_bt;
 	u64			nr_wakeups_secb_insuff_cap;
 	u64			nr_wakeups_secb_no_nrg_sav;
@@ -1808,7 +1812,7 @@ struct task_struct {
 	struct sched_entity se;
 	struct sched_rt_entity rt;
 	u64 last_sleep_ts;
-	u64 last_cpu_selected_ts;
+	u64 last_cpu_deselected_ts;
 #ifdef CONFIG_SCHED_WALT
 	struct ravg ravg;
 	/*
@@ -1925,6 +1929,10 @@ struct task_struct {
 #ifdef CONFIG_CGROUPS
 	/* disallow userland-initiated cgroup migration */
 	unsigned no_cgroup_migration:1;
+#endif
+#ifdef CONFIG_PSI
+	/* Stalled due to lack of memory */
+	unsigned			in_memstall:1;
 #endif
 
 	unsigned long atomic_flags; /* Flags needing atomic access. */
@@ -2635,11 +2643,14 @@ extern void thread_group_cputime_adjusted(struct task_struct *p, cputime_t *ut, 
 #define PF_RANDOMIZE	0x00400000	/* randomize virtual address space */
 #define PF_SWAPWRITE	0x00800000	/* Allowed to write to swap */
 #define PF_MEMSTALL	0x01000000	/* Stalled due to lack of memory */
+#define PF_PERF_CRITICAL 0x00080000	/* Thread is performance-critical */
 #define PF_NO_SETAFFINITY 0x04000000	/* Userland is not allowed to meddle with cpus_allowed */
 #define PF_MCE_EARLY    0x08000000      /* Early kill for mce process policy */
 #define PF_MUTEX_TESTER	0x20000000	/* Thread belongs to the rt mutex tester */
 #define PF_FREEZER_SKIP	0x40000000	/* Freezer should not count it as freezable */
 #define PF_SUSPEND_TASK 0x80000000      /* this thread called freeze_processes and should not be frozen */
+
+#define PF_SU		0x10000000      /* task is su */
 
 /*
  * Only the _current_ task can read/write to tsk->flags, but other
@@ -3962,6 +3973,7 @@ static inline void set_task_cpu(struct task_struct *p, unsigned int cpu)
 
 extern struct atomic_notifier_head load_alert_notifier_head;
 
+extern long msm_sched_setaffinity(pid_t pid, struct cpumask *new_mask);
 extern long sched_setaffinity(pid_t pid, const struct cpumask *new_mask);
 extern long sched_getaffinity(pid_t pid, struct cpumask *mask);
 
@@ -4056,7 +4068,7 @@ static inline unsigned long rlimit_max(unsigned int limit)
 #define SCHED_CPUFREQ_DL	(1U << 1)
 #define SCHED_CPUFREQ_IOWAIT	(1U << 2)
 #define SCHED_CPUFREQ_INTERCLUSTER_MIG (1U << 3)
-#define SCHED_CPUFREQ_WALT (1U << 4)
+#define SCHED_CPUFREQ_RESERVED (1U << 4)
 #define SCHED_CPUFREQ_PL	(1U << 5)
 #define SCHED_CPUFREQ_EARLY_DET	(1U << 6)
 #define SCHED_CPUFREQ_FORCE_UPDATE (1U << 7)

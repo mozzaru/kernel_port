@@ -1666,8 +1666,7 @@ yyreduce:
   case 23:
 #line 251 "dtc-parser.y" /* yacc.c:1646  */
     {
-			add_label(&(yyvsp[0].prop)->labels, (yyvsp[-1].labelref));
-			(yyval.prop) = (yyvsp[0].prop);
+			(yyval.proplist) = chain_property((yyvsp[0].prop), (yyvsp[-1].proplist));
 		}
 #line 1673 "dtc-parser.tab.c" /* yacc.c:1646  */
     break;
@@ -1675,7 +1674,7 @@ yyreduce:
   case 24:
 #line 259 "dtc-parser.y" /* yacc.c:1646  */
     {
-			(yyval.data) = data_merge((yyvsp[-1].data), (yyvsp[0].data));
+			(yyval.prop) = build_property((yyvsp[-3].propnodename), (yyvsp[-1].data));
 		}
 #line 1681 "dtc-parser.tab.c" /* yacc.c:1646  */
     break;
@@ -1683,7 +1682,7 @@ yyreduce:
   case 25:
 #line 263 "dtc-parser.y" /* yacc.c:1646  */
     {
-			(yyval.data) = data_merge((yyvsp[-2].data), (yyvsp[-1].array).data);
+			(yyval.prop) = build_property((yyvsp[-1].propnodename), empty_data);
 		}
 #line 1689 "dtc-parser.tab.c" /* yacc.c:1646  */
     break;
@@ -1691,7 +1690,7 @@ yyreduce:
   case 26:
 #line 267 "dtc-parser.y" /* yacc.c:1646  */
     {
-			(yyval.data) = data_merge((yyvsp[-3].data), (yyvsp[-1].data));
+			(yyval.prop) = build_property_delete((yyvsp[-1].propnodename));
 		}
 #line 1697 "dtc-parser.tab.c" /* yacc.c:1646  */
     break;
@@ -1699,7 +1698,8 @@ yyreduce:
   case 27:
 #line 271 "dtc-parser.y" /* yacc.c:1646  */
     {
-			(yyval.data) = data_add_marker((yyvsp[-1].data), REF_PATH, (yyvsp[0].labelref));
+			add_label(&(yyvsp[0].prop)->labels, (yyvsp[-1].labelref));
+			(yyval.prop) = (yyvsp[0].prop);
 		}
 #line 1705 "dtc-parser.tab.c" /* yacc.c:1646  */
     break;
@@ -2023,7 +2023,7 @@ yyreduce:
     {
 			(yyval.data) = data_add_marker((yyvsp[-1].data), LABEL, (yyvsp[0].labelref));
 		}
-#line 2027 "dtc-parser.tab.c" /* yacc.c:1646  */
+#line 2059 "dtc-parser.tab.c" /* yacc.c:1646  */
     break;
 
   case 80:
