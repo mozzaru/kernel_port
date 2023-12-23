@@ -820,26 +820,6 @@ KBUILD_CFLAGS	+= $(call cc-option, -mfix-cortex-a53-835769)
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
 KBUILD_CFLAGS	+= $(call cc-option,-fno-allow-store-data-races)
 
-# Restore pre-gcc-10's params
-KBUILD_CFLAGS	+= $(call gcc-ifversion, -ge, 1000, --param=inline-min-speedup=15)
-KBUILD_CFLAGS	+= $(call gcc-ifversion, -ge, 1000, --param=max-inline-insns-single=200)
-KBUILD_CFLAGS	+= $(call gcc-ifversion, -ge, 1000, --param=max-inline-insns-auto=30)
-KBUILD_CFLAGS	+= $(call gcc-ifversion, -ge, 1000, --param=early-inlining-insns=14)
-
-# clang variable sanitization
-ifeq ($(call clang-ifversion, -ge, 0800, y),y)
-# Future support for zero initialization is still being debated, see
-# https://bugs.llvm.org/show_bug.cgi?id=45497. These flags are subject to being
-# renamed or dropped.
-KBUILD_CFLAGS	+= -ftrivial-auto-var-init=zero
-KBUILD_CFLAGS += $(call cc-option, -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang)
-else ifeq ($(call clang-ifversion, -lt, 0800, y),y)
-# This requires an external patch to clang from HardenedOS, which has been
-# superseded by -ftrivial-auto-var-init=zero above for clang 8+ and any
-# -fsanitize= options may require build to be LTO as well
-KBUILD_CFLAGS	+= $(call cc-option, -fsanitize=local-init)
-endif
-
 # check for 'asm goto'
 ifeq ($(shell $(CONFIG_SHELL) $(srctree)/scripts/gcc-goto.sh $(CC) $(KBUILD_CFLAGS)), y)
 	KBUILD_CFLAGS += -DCC_HAVE_ASM_GOTO
@@ -1355,7 +1335,20 @@ ifdef lto-flags
 		>&2 && exit 1
   endif
 endif
-
+# Make sure compiler supports requested stack protector flag.
+ifdef stackp-name
+  ifeq ($(call cc-option, $(stackp-flag)),)
+	@echo Cannot use CONFIG_CC_STACKPROTECTOR_$(stackp-name): \
+		  $(stackp-flag) not supported by compiler >&2 && exit 1
+  endif
+endif
+# Make sure compiler does not have buggy stack-protector support.
+ifdef stackp-check
+  ifneq ($(shell $(CONFIG_SHELL) $(stackp-check) $(CC) $(KBUILD_CPPFLAGS) $(biarch)),y)
+	@echo Cannot use CONFIG_CC_STACKPROTECTOR_$(stackp-name): \
+                  $(stackp-flag) available but compiler is broken >&2 && exit 1
+  endif
+endif
 ifdef cfi-flags
   ifeq ($(call cc-option, $(cfi-flags)),)
 	@echo Cannot use CONFIG_CFI: $(cfi-flags) not supported by compiler >&2 && exit 1
