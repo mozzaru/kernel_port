@@ -3,7 +3,7 @@ on:
    workflow_dispatch:
 
 jobs:
-  prototypebuild:
+  fussionbuild:
        runs-on: ubuntu-latest
 
        steps:
@@ -20,7 +20,7 @@ jobs:
               binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
        - name: Building Kernel...
          run: |
-             chmod +x build.sh && bash build.sh
+             chmod +x build_markw.sh && bash build_markw.sh
              shell: bash
              env:
               CHATID: ${{ secrets.CHAT_ID }}

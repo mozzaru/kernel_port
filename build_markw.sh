@@ -52,20 +52,20 @@ if [[ ! -d "$MY_DIR" ]]; then MY_DIR="$PWD"; fi
 #
 # TOOLCHAIN = the toolchain u want to use "gcc/clang"
 
-CHATID="5801557250"
-API_BOT="6130238052:AAFDEWKYtsPPEt2xGHUHigpy6J4goGzqwC0"
+CHATID="5662490629"
+API_BOT="5862606583:AAGDNDgElCTi2i74XNayUsAOKjt3Bl7njGc"
 
 
 DEVICE="Redmi 4 Prime"
 CODENAME="markw"
-KERNEL_NAME="Prototype"
+KERNEL_NAME="Prototype-v2-normal"
 
 DEFCONFIG="markw_defconfig"
 
 AnyKernel="https://github.com/mozzaru/anykernel.git"
 AnyKernelbranch="master"
 
-HOSST="mozzaru Buildbot"
+HOSST="Show Buildbot"
 USEER="mozzaru"
 
 TOOLCHAIN="clang"
@@ -206,9 +206,9 @@ KERVER=$(make kernelversion)
                 mv Image.gz-dtb zImage
                 export ZIP="$KERNEL_NAME"-"$CODENAME"-"$DATE"
                 zip -r "$ZIP" *
-                curl -sLo zipsigner-3.0.jar https://raw.githubusercontent.com/mozzaru/AnyKernel/master/zipsigner-3.0.jar
+                curl -sLo zipsigner-3.0.jar https://raw.githubusercontent.com/Hunter-commits/AnyKernel/master/zipsigner-3.0.jar
                 java -jar zipsigner-3.0.jar "$ZIP".zip "$ZIP"-signed.zip
-                tg_post_msg "<b>=============================</b> %0A <b>× Prototype For Redmi 4 Prime ×</b> %0A <b>=============================</b> %0A%0A <b>Date : </b> <code>$(TZ=Indonesia/Jakarta date)</code> %0A%0A <b>Device Code Name:</b> <code>$CODENAME</code> %0A%0A <b>Kernel Version :</b> <code>$KERVER</code> %0A%0A <b>Changelog:</b> %0A https://github.com/mozzaru/kernel_xiaomi_markw_new/commits/Tt <b>Developer:</b> @mozzaru %0A%0A  #prototype #markw" "$CHATID"
+                tg_post_msg "<b>=============================</b> %0A <b>× Prototype For Redmi 4 Prime ×</b> %0A <b>=============================</b> %0A%0A <b>Date : </b> <code>$(TZ=Indonesia/Jakarta date)</code> %0A%0A <b>Device Code Name:</b> <code>$CODENAME</code> %0A%0A <b>Kernel Version :</b> <code>$KERVER</code> %0A%0A <b>Developer:</b> @mozzaru86 %0A%0A <b>Channel:</b> t.me/Cooking_kernel_bot %0A%0A <b>Changelog:</b> %0A https://github.com/mozzaru/kernel_port/commits/normal #prototype #markw" "$CHATID"
                 tg_post_build "$ZIP"-signed.zip "$CHATID"
                 cd ..
                 rm -rf error.log
