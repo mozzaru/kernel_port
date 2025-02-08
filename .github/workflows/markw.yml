@@ -3,7 +3,7 @@ on:
    workflow_dispatch:
 
 jobs:
-  prototypebuild:
+  fussionbuild:
        runs-on: ubuntu-latest
 
        steps:
